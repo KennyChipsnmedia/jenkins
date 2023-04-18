@@ -83,6 +83,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -967,6 +968,13 @@ public /*transient*/ abstract class Computer extends Actionable implements Acces
     @Exported
     @StaplerDispatchable
     public List<Executor> getExecutors() {
+        // Kenny
+        executors.sort(new Comparator<Executor>() {
+            @Override
+            public int compare(Executor o1, Executor o2) {
+                return o1.getNumber() - o2.getNumber();
+            }
+        });
         return new ArrayList<>(executors);
     }
 
@@ -976,6 +984,13 @@ public /*transient*/ abstract class Computer extends Actionable implements Acces
     @Exported
     @StaplerDispatchable
     public List<OneOffExecutor> getOneOffExecutors() {
+        // Kenny
+        oneOffExecutors.sort(new Comparator<OneOffExecutor>() {
+            @Override
+            public int compare(OneOffExecutor o1, OneOffExecutor o2) {
+                return o1.getNumber() - o2.getNumber();
+            }
+        });
         return new ArrayList<>(oneOffExecutors);
     }
 
@@ -989,6 +1004,14 @@ public /*transient*/ abstract class Computer extends Actionable implements Acces
         List<Executor> result = new ArrayList<>(executors.size() + oneOffExecutors.size());
         result.addAll(executors);
         result.addAll(oneOffExecutors);
+
+        // Kenny
+        result.sort(new Comparator<Executor>() {
+            @Override
+            public int compare(Executor o1, Executor o2) {
+                return o1.getNumber() - o2.getNumber();
+            }
+        });
         return result;
     }
 

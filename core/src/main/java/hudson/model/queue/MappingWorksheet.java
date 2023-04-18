@@ -43,6 +43,7 @@ import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -359,6 +360,14 @@ public class MappingWorksheet {
         List<ExecutorChunk> executors = new ArrayList<>();
         for (List<ExecutorSlot> group : j.values()) {
             if (group.isEmpty())    continue;   // evict empty group
+
+            // Kenny
+            group.sort(new Comparator<ExecutorSlot>() {
+                @Override
+                public int compare(ExecutorSlot o1, ExecutorSlot o2) {
+                    return o1.getExecutor().getNumber() - o2.getExecutor().getNumber();
+                }
+            });
             ExecutorChunk ec = new ExecutorChunk(group, executors.size());
             if (ec.node == null)  continue;   // evict out of sync node
             executors.add(ec);
