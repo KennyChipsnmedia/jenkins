@@ -593,6 +593,7 @@ public class Queue extends ResourceController implements Saveable {
      *      That said, one can still look at {@link WaitingItem#future}, {@link WaitingItem#getId()}, etc.
      */
     private @NonNull ScheduleResult scheduleInternal(Task p, int quietPeriod, List<Action> actions) {
+        LOGGER.log(Level.INFO, "WAIT_LOCK_COUNT:" + lock.getQueueLength());
         lock.lock();
         try { try {
             Calendar due = new GregorianCalendar();
