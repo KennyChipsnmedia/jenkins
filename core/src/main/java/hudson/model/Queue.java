@@ -97,8 +97,10 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
+//import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -173,6 +175,11 @@ import org.springframework.security.core.Authentication;
 @ExportedBean
 public class Queue extends ResourceController implements Saveable {
 
+    // Kenny
+    private final ExecutorService executorService;
+    private AtomicLong standbyCounter = new AtomicLong(0);
+    //
+
     /**
 
      * Items that are waiting for its quiet period to pass.
@@ -181,7 +188,8 @@ public class Queue extends ResourceController implements Saveable {
      * This consists of {@link Item}s that cannot be run yet
      * because its time has not yet come.
      */
-    private final Set<WaitingItem> waitingList = new TreeSet<>();
+//    private final Set<WaitingItem> waitingList = new TreeSet<>();
+    private final Set<WaitingItem> waitingList = new LinkedHashSet<>();
 
     /**
      * {@link Task}s that can be built immediately
@@ -224,6 +232,7 @@ public class Queue extends ResourceController implements Saveable {
      * started to carry out the task in question.
      */
     public static class JobOffer extends MappingWorksheet.ExecutorSlot {
+
         public final Executor executor;
 
         /**
@@ -346,6 +355,9 @@ public class Queue extends ResourceController implements Saveable {
         // if all the executors are busy doing something, then the queue won't be maintained in
         // timely fashion, so use another thread to make sure it happens.
         new MaintainTask(this).periodic();
+
+        // Kenny
+        executorService = Executors.newCachedThreadPool();
     }
 
     public LoadBalancer getLoadBalancer() {
@@ -542,6 +554,8 @@ public class Queue extends ResourceController implements Saveable {
     }
 
     /**
+     * Author: Kenny, recode for fast queueing.
+     *
      * Schedules an execution of a task.
      *
      * @param actions
@@ -564,19 +578,44 @@ public class Queue extends ResourceController implements Saveable {
      */
     public @NonNull ScheduleResult schedule2(Task p, int quietPeriod, List<Action> actions) {
         // remove nulls
-        actions = new ArrayList<>(actions);
-        actions.removeIf(Objects::isNull);
+        final List<Action> actions2 = new ArrayList<>(actions);
+        actions2.removeIf(Objects::isNull);
 
-        lock.lock();
-        try { try {
-            for (QueueDecisionHandler h : QueueDecisionHandler.all())
-                if (!h.shouldSchedule(p, actions))
-                    return ScheduleResult.refused();    // veto
+        Future<ScheduleResult> future =  executorService.submit(new Callable<ScheduleResult>() {
+            @Override
+            public ScheduleResult call() {
+                standbyCounter.incrementAndGet();
+                logQueInfo("schedule2");
+                for (QueueDecisionHandler h : QueueDecisionHandler.all())
+                    if (!h.shouldSchedule(p, actions2))
+                        return ScheduleResult.refused();    // veto
 
-            return scheduleInternal(p, quietPeriod, actions);
-        } finally { updateSnapshot(); } } finally {
-            lock.unlock();
+                return scheduleInternal(p, quietPeriod, actions2);
+            }
+
+        });
+
+
+        try {
+            return future.get();
         }
+        catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "", e);
+            return ScheduleResult.refused();
+        }
+    }
+
+    /**
+     * Author: Kenny, log Queue information
+     */
+    private void logQueInfo(String title) {
+        String dmsg = String.format(title + " => T_ID:%d STANDBY_COUNT:%d, QUEUE_INFO(wait:%d buildable:%d pending:%d blocked:%d)",
+            Thread.currentThread().getId(), standbyCounter.get(), waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size());
+        LOGGER.log(Level.INFO, dmsg);
+    }
+
+    public long getStandbyCount() {
+        return standbyCounter.get();
     }
 
     /**
@@ -593,7 +632,9 @@ public class Queue extends ResourceController implements Saveable {
      *      That said, one can still look at {@link WaitingItem#future}, {@link WaitingItem#getId()}, etc.
      */
     private @NonNull ScheduleResult scheduleInternal(Task p, int quietPeriod, List<Action> actions) {
-        LOGGER.log(Level.INFO, "WAIT_LOCK_COUNT:" + lock.getQueueLength());
+
+        //
+
         lock.lock();
         try { try {
             Calendar due = new GregorianCalendar();
@@ -619,7 +660,58 @@ public class Queue extends ResourceController implements Saveable {
                 // put the item in the queue
                 WaitingItem added = new WaitingItem(due, p, actions);
                 added.enter(this);
-                scheduleMaintenance();   // let an executor know that a new item is in the queue.
+
+                executorService.submit(new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        try {
+                            Thread.sleep(1000);
+                        }
+                        catch (Exception e) {
+                            LOGGER.log(Level.WARNING, e.getMessage(), e);
+                        }
+                        if (standbyCounter.decrementAndGet() == 0) {
+                            LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
+                            maintainerThread.submit();
+                        }
+
+                        return  null;
+                    }
+                });
+                //
+                /*
+                es.submit(new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        try {
+                            Thread.sleep(1000);
+                            if (standbyCounter.decrementAndGet() == 0) {
+                                LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
+                                maintain();
+                            }
+
+                        }
+                        catch (Exception e) {
+                        }
+
+                        return null;
+                    }
+                });
+                */
+
+                /*
+                if (standbyCounter.decrementAndGet() == 0) {
+                    try {
+                        Thread.sleep(1000);
+                        LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
+                        scheduleMaintenance();
+                    }
+                    catch (Exception e) {
+
+                    }
+                }
+                */
+
                 return ScheduleResult.created(added);
             }
 
@@ -1182,8 +1274,18 @@ public class Queue extends ResourceController implements Saveable {
      */
     @WithBridgeMethods(void.class)
     public Future<?> scheduleMaintenance() {
-        // LOGGER.info("Scheduling maintenance");
         return maintainerThread.submit();
+//        return maintainerThread.submit();
+        // Kenny
+        /*
+        return executorService.submit(new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
+                maintain();
+                return null;
+            }
+        });
+        */
     }
 
     /**
@@ -2747,6 +2849,8 @@ public class Queue extends ResourceController implements Saveable {
             if (r) {
                 LOGGER.log(Level.FINE, "{0} no longer blocked", this);
                 Listeners.notify(QueueListener.class, true, l -> l.onLeaveBuildable(this));
+                q.logQueInfo("onLeave buildable");
+                q.scheduleMaintenance();
             }
             return r;
         }
@@ -2905,8 +3009,21 @@ public class Queue extends ResourceController implements Saveable {
         @Override
         protected void doRun() {
             Queue q = queue.get();
-            if (q != null)
+            if (q != null) {
+
+                q.logQueInfo("periodic");
                 q.maintain();
+
+//                if (q.getStandbyCount() == 0) {
+//                    q.logQueInfo("periodic-Y");
+//                    q.maintain();
+//                }
+//                else {
+//                    q.logQueInfo("periodic-N");
+//                }
+
+            }
+
             else
                 cancel();
         }

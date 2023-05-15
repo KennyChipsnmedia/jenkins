@@ -73,10 +73,10 @@ public class AtmostOneTaskExecutor<V> {
 
     public AtmostOneTaskExecutor(Callable<V> task) {
         this(new ImpersonatingExecutorService(new AtmostOneThreadExecutor(new NamingThreadFactory(
-                        new DaemonThreadFactory(),
-                        String.format("AtmostOneTaskExecutor[%s]", task)
-                )), ACL.SYSTEM2),
-                task
+                new DaemonThreadFactory(),
+                String.format("AtmostOneTaskExecutor[%s]", task)
+            )), ACL.SYSTEM2),
+            task
         );
     }
 
@@ -114,7 +114,8 @@ public class AtmostOneTaskExecutor<V> {
                         synchronized (AtmostOneTaskExecutor.this) {
                             // if next one is pending, get that scheduled
                             inprogress = null;
-                            maybeRun();
+                            // Kenny, Don't do again, just do once at a time.
+//                            maybeRun();
                         }
                     }
                     return null;
