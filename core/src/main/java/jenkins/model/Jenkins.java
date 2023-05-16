@@ -2935,6 +2935,21 @@ public class Jenkins extends AbstractCIBase implements DirectlyModifiableTopLeve
     }
 
     /**
+     * Author: Kenny
+     */
+    @Exported
+    public boolean isOverloaded() {
+        int queueSize = getQueue().getItems().length;
+        int queueCapacity = JenkinsLocationConfiguration.get().getQueueCapacity();
+        if (queueCapacity != 0) {
+            if (queueSize > queueCapacity) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns quiet down reason if it was indicated.
      * @return
      *      Reason if it was indicated. null otherwise

@@ -36,6 +36,16 @@ THE SOFTWARE.
         </j:if>
       </div>
     </j:if>
+    <j:if test="${app.isOverloaded()}">
+      <div style="background-color:#FFEB3B;
+                  border-radius:var(--form-input-border-radius);
+                  color:#000;
+                  font-weight:700;
+                  margin-bottom:var(--section-padding);
+                  padding:.5em;
+                  text-align:center">${%Queue Overloaded}
+      </div>
+    </j:if>
     <a name="skip2content" />
     <d:invokeBody />
   </j:if>

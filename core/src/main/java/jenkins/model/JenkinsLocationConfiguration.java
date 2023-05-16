@@ -57,6 +57,7 @@ public class JenkinsLocationConfiguration extends GlobalConfiguration implements
     private transient String hudsonUrl;
     private String adminAddress;
     private String jenkinsUrl;
+    private int queueCapacity = 0;
 
     // just to suppress warnings
     private transient String charset, useSsl;
@@ -130,6 +131,22 @@ public class JenkinsLocationConfiguration extends GlobalConfiguration implements
         this.adminAddress = address;
         save();
     }
+
+    /**
+     * Author: Kenny
+     */
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    /**
+     * Author: Kenny
+     */
+    public void setQueueCapacity(int queueCapacity) {
+        this.queueCapacity = queueCapacity;
+        save();
+    }
+
 
     public @CheckForNull String getUrl() {
         return jenkinsUrl;

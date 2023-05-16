@@ -112,6 +112,7 @@ import java.util.stream.Collectors;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 import jenkins.model.Jenkins;
+import jenkins.model.JenkinsLocationConfiguration;
 import jenkins.model.queue.AsynchronousExecution;
 import jenkins.model.queue.CompositeCauseOfBlockage;
 import jenkins.security.QueueItemAuthenticator;
@@ -578,6 +579,16 @@ public class Queue extends ResourceController implements Saveable {
      */
     public @NonNull ScheduleResult schedule2(Task p, int quietPeriod, List<Action> actions) {
         // remove nulls
+        int queueCapacity = JenkinsLocationConfiguration.get().getQueueCapacity();
+        int itemsInQueCount = getItems().length;
+
+        if (queueCapacity != 0) {
+            if (itemsInQueCount > queueCapacity) {
+                LOGGER.log(Level.INFO, "Refused, ITEMS_IN_QUEUE_COUNT:" + itemsInQueCount + " is greater than QUEUE_CAPACITY:" + queueCapacity);
+                return ScheduleResult.refused();
+            }
+        }
+
         final List<Action> actions2 = new ArrayList<>(actions);
         actions2.removeIf(Objects::isNull);
 
@@ -609,6 +620,7 @@ public class Queue extends ResourceController implements Saveable {
      * Author: Kenny, log Queue information
      */
     private void logQueInfo(String title) {
+
         String dmsg = String.format(title + " => T_ID:%d STANDBY_COUNT:%d, QUEUE_INFO(wait:%d buildable:%d pending:%d blocked:%d)",
             Thread.currentThread().getId(), standbyCounter.get(), waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size());
         LOGGER.log(Level.INFO, dmsg);
@@ -1580,6 +1592,7 @@ public class Queue extends ResourceController implements Saveable {
         if (jenkins == null) {
             return;
         }
+
         lock.lock();
         try { try {
 
