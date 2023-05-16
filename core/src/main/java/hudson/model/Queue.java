@@ -595,12 +595,11 @@ public class Queue extends ResourceController implements Saveable {
         Future<ScheduleResult> future =  executorService.submit(new Callable<ScheduleResult>() {
             @Override
             public ScheduleResult call() {
-                standbyCounter.incrementAndGet();
-                logQueInfo("schedule2");
                 for (QueueDecisionHandler h : QueueDecisionHandler.all())
                     if (!h.shouldSchedule(p, actions2))
                         return ScheduleResult.refused();    // veto
-
+                standbyCounter.incrementAndGet();
+                logQueInfo("schedule2");
                 return scheduleInternal(p, quietPeriod, actions2);
             }
 
@@ -690,39 +689,6 @@ public class Queue extends ResourceController implements Saveable {
                         return  null;
                     }
                 });
-                //
-                /*
-                es.submit(new Callable<Void>() {
-                    @Override
-                    public Void call() throws Exception {
-                        try {
-                            Thread.sleep(1000);
-                            if (standbyCounter.decrementAndGet() == 0) {
-                                LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
-                                maintain();
-                            }
-
-                        }
-                        catch (Exception e) {
-                        }
-
-                        return null;
-                    }
-                });
-                */
-
-                /*
-                if (standbyCounter.decrementAndGet() == 0) {
-                    try {
-                        Thread.sleep(1000);
-                        LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
-                        scheduleMaintenance();
-                    }
-                    catch (Exception e) {
-
-                    }
-                }
-                */
 
                 return ScheduleResult.created(added);
             }
@@ -758,6 +724,7 @@ public class Queue extends ResourceController implements Saveable {
             // whether the new one should affect all existing ones or not is debatable. I for myself
             // thought this would only affect one, so the code was bit of surprise, but I'm keeping the current
             // behaviour.
+            standbyCounter.decrementAndGet();
             return ScheduleResult.existing(duplicatesInQueue.get(0));
         } finally { updateSnapshot(); } } finally {
             lock.unlock();
