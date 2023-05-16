@@ -1310,6 +1310,7 @@ public class Queue extends ResourceController implements Saveable {
                 causeOfBlockage = CauseOfBlockage.fromMessage(Messages._Queue_ExceptionCanRun());
             }
             if (causeOfBlockage != null)
+                LOGGER.log(Level.FINE, "Kenny 1315 causeOfBlockage:" + causeOfBlockage.getShortDescription());
                 return causeOfBlockage;
         }
 
@@ -1710,7 +1711,7 @@ public class Queue extends ResourceController implements Saveable {
                 if (causeOfBlockage != null) {
                     p.leave(this);
                     new BlockedItem(p, causeOfBlockage).enter(this);
-                    LOGGER.log(Level.FINE, "Catching that {0} is blocked in the last minute", p);
+                    LOGGER.log(Level.FINE, "Kenny 1714 Catching that {0} is blocked in the last minute", p);
                     // JENKINS-28926 we have moved an unblocked task into the blocked state, update snapshot
                     // so that other buildables which might have been blocked by this can see the state change
                     updateSnapshot();
@@ -2849,8 +2850,7 @@ public class Queue extends ResourceController implements Saveable {
             if (r) {
                 LOGGER.log(Level.FINE, "{0} no longer blocked", this);
                 Listeners.notify(QueueListener.class, true, l -> l.onLeaveBuildable(this));
-                q.logQueInfo("onLeave buildable");
-                q.scheduleMaintenance();
+
             }
             return r;
         }
@@ -2907,6 +2907,9 @@ public class Queue extends ResourceController implements Saveable {
         void enter(Queue q) {
             q.leftItems.put(getId(), this);
             Listeners.notify(QueueListener.class, true, l -> l.onLeft(this));
+
+            q.logQueInfo("onLeft");
+            q.scheduleMaintenance();
         }
 
         @Override
