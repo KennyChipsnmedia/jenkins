@@ -1661,6 +1661,7 @@ public class Queue extends ResourceController implements Saveable {
                         // ready to be executed
                         Runnable r = makeBuildable(new BuildableItem(p));
                         if (r != null) {
+
                             p.leave(this);
                             r.run();
                             // JENKINS-28926 we have removed a task from the blocked projects and added to building
@@ -1688,6 +1689,7 @@ public class Queue extends ResourceController implements Saveable {
                 if (causeOfBlockage == null) {
                     // ready to be executed immediately
                     Runnable r = makeBuildable(new BuildableItem(top));
+
                     String topTaskDisplayName = LOGGER.isLoggable(Level.FINEST) ? top.task.getFullDisplayName() : null;
                     if (r != null) {
                         LOGGER.log(Level.FINEST, "Executing runnable {0}", topTaskDisplayName);

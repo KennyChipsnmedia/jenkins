@@ -35,6 +35,7 @@ import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.AutoCompletionCandidates;
+import hudson.model.Build;
 import hudson.model.BuildListener;
 import hudson.model.Cause.UpstreamCause;
 import hudson.model.DependencyGraph;
@@ -48,6 +49,7 @@ import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.ItemListener;
+import hudson.model.queue.QueueTaskFuture;
 import hudson.model.queue.Tasks;
 import hudson.security.ACL;
 import hudson.security.ACLContext;
@@ -226,6 +228,7 @@ public class BuildTrigger extends Recorder implements DependencyDeclarer {
                     continue;
                 }
                 boolean scheduled = pj.scheduleBuild(pj.getQuietPeriod(), new UpstreamCause((Run) build));
+
                 if (Jenkins.get().getItemByFullName(downstream.getFullName()) == downstream) {
                     String name = ModelHyperlinkNote.encodeTo(downstream);
                     if (scheduled) {
@@ -295,6 +298,28 @@ public class BuildTrigger extends Recorder implements DependencyDeclarer {
                     logger.println(Messages.BuildTrigger_Disabled(ModelHyperlinkNote.encodeTo(p)));
                     continue;
                 }
+
+                // Kenny, print post-build action build number link.
+                QueueTaskFuture<Build> f =  p.scheduleBuild2(p.getQuietPeriod(), new UpstreamCause((Run) build), buildActions.toArray(new Action[0]));
+                if (Jenkins.get().getItemByFullName(p.getFullName()) == p) {
+                    if (f != null) {
+                        try {
+                            f.waitForStart();
+                            String link = ModelHyperlinkNote.encodeTo(f.get());
+                            logger.println(Messages.BuildTrigger_Triggering(p.getFullDisplayName() + " " + link));
+                        }
+                        catch (Exception e) {
+                            String name = ModelHyperlinkNote.encodeTo(p);
+                            logger.println("failed to wait executed " + Messages.BuildTrigger_Triggering(name));
+                        }
+                    }
+                    else {
+                        String name = ModelHyperlinkNote.encodeTo(p);
+                        logger.println(Messages.BuildTrigger_InQueue(name));
+                    }
+                }
+
+                /* Jenkins original
                 boolean scheduled = p.scheduleBuild(p.getQuietPeriod(), new UpstreamCause((Run) build), buildActions.toArray(new Action[0]));
                 if (Jenkins.get().getItemByFullName(p.getFullName()) == p) {
                     String name = ModelHyperlinkNote.encodeTo(p);
@@ -304,6 +329,8 @@ public class BuildTrigger extends Recorder implements DependencyDeclarer {
                         logger.println(Messages.BuildTrigger_InQueue(name));
                     }
                 } // otherwise upstream users should not know that it happened
+                */
+
             }
         }
 
