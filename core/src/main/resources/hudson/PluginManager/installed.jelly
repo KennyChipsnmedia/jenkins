@@ -96,7 +96,7 @@ THE SOFTWARE.
                   <td class="details">
                     <div class="plugin-name success-plugin">
                       <a href="${p.url}" class="jenkins-table__link" target="_blank" rel="noopener noreferrer">
-                        ${p.updateInfo.displayName?:p.displayName}
+                        ${p.displayName}
                         <span class="jenkins-label jenkins-label--tertiary" style="margin-left: 1ch;">
                           <span class="jenkins-visually-hidden">${%Version}</span>
                           ${p.version}
