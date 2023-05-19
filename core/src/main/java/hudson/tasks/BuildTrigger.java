@@ -302,20 +302,21 @@ public class BuildTrigger extends Recorder implements DependencyDeclarer {
                 // Kenny, print post-build action build number link.
                 QueueTaskFuture<Build> f =  p.scheduleBuild2(p.getQuietPeriod(), new UpstreamCause((Run) build), buildActions.toArray(new Action[0]));
                 if (Jenkins.get().getItemByFullName(p.getFullName()) == p) {
+                    String nameLink = ModelHyperlinkNote.encodeTo(p);
                     if (f != null) {
                         try {
                             f.waitForStart();
-                            String link = ModelHyperlinkNote.encodeTo(f.get());
-                            logger.println(Messages.BuildTrigger_Triggering(p.getFullDisplayName() + " " + link));
+                            String buildLink = ModelHyperlinkNote.encodeTo(f.get());
+//                            logger.println(Messages.BuildTrigger_Triggering(p.getFullDisplayName() + " " + nameLink + " " + buildLink));
+                            logger.println(Messages.BuildTrigger_Triggering(nameLink + " " + buildLink));
                         }
                         catch (Exception e) {
-                            String name = ModelHyperlinkNote.encodeTo(p);
-                            logger.println("failed to wait executed " + Messages.BuildTrigger_Triggering(name));
+                            logger.println("failed to wait executed " + Messages.BuildTrigger_Triggering(nameLink));
                         }
                     }
                     else {
-                        String name = ModelHyperlinkNote.encodeTo(p);
-                        logger.println(Messages.BuildTrigger_InQueue(name));
+
+                        logger.println(Messages.BuildTrigger_InQueue(nameLink));
                     }
                 }
 

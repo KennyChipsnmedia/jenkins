@@ -324,6 +324,7 @@ public class Executor extends Thread implements ModelObject {
 
     @Override
     public void run() {
+
         if (!owner.isOnline()) {
             resetWorkUnit("went off-line before the task's worker thread started");
             owner.removeExecutor(this);
@@ -438,9 +439,11 @@ public class Executor extends Thread implements ModelObject {
                         LOGGER.log(FINE, "some QueueItemAuthenticator implementations configured but neglected to authenticate {0}", executable);
                     }
                 }
+
                 try (ACLContext context = ACL.as2(auth)) {
                     queue.execute(executable, task);
                 }
+
             } catch (AsynchronousExecution x) {
                 lock.writeLock().lock();
                 try {
@@ -474,6 +477,8 @@ public class Executor extends Thread implements ModelObject {
                 finish2();
             }
         }
+
+
     }
 
     private void finish1(@CheckForNull Throwable problems) {

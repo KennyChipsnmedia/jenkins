@@ -103,8 +103,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 import jenkins.model.ArtifactManager;
@@ -154,6 +156,11 @@ import org.springframework.security.core.Authentication;
 @ExportedBean
 public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, RunT>>
         extends Actionable implements ExtensionPoint, Comparable<RunT>, AccessControlled, PersistenceRoot, DescriptorByNameOwner, OnMaster, StaplerProxy {
+
+    // Kenny
+    // Prevent logRotate if sibilings exists.
+    private static final Map<Integer, Run> runners = new ConcurrentHashMap<>();
+
 
     /**
      * The original {@link Queue.Item#getId()} has not yet been mapped onto the {@link Run} instance.
@@ -1854,6 +1861,11 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
         execute(job);
     }
 
+
+    public static Map<Integer, Run> getRunners() {
+        return Collections.unmodifiableMap(runners);
+    }
+
     protected final void execute(@NonNull RunExecution job) {
         if (result != null)
             return;     // already built.
@@ -1862,6 +1874,7 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
         StreamBuildListener listener = null;
 
         runner = job;
+        runners.put(getNumber(), this);
         onStartBuilding();
         try {
             // to set the state to COMPLETE in the end, even if the thread dies abnormally.
@@ -1923,7 +1936,6 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
 
                 // even if the main build fails fatally, try to run post build processing
                 job.post(Objects.requireNonNull(listener));
-
             } catch (ThreadDeath t) {
                 throw t;
             } catch (Throwable e) {
@@ -1961,7 +1973,13 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
             }
 
             try {
-                getParent().logRotate();
+                runners.remove(getNumber());
+                LOGGER.log(Level.FINER, "Kenny 1978 check if parent job name:{0} exists", new Object[] {getParent().getName()});
+                List<Map.Entry<Integer, Run>> siblings = runners.entrySet().stream().filter(r -> r.getValue().getParent().getName().equals(this.getParent().getName())).collect(Collectors.toList());
+                if (siblings.size() == 0) {
+                    getParent().logRotate();
+                }
+                LOGGER.log(FINER, "Kenny 1978 log rotate done on {0}", this);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to rotate log", e);
             }
@@ -2045,10 +2063,13 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
      * Called when a job finished building normally or abnormally.
      */
     protected void onEndBuilding() {
+
         // signal that we've finished building.
         state = State.COMPLETED;
         LOGGER.log(FINER, "moving to COMPLETED on {0}", this);
         if (runner != null) {
+
+
             // MavenBuilds may be created without their corresponding runners.
             runner.checkpoints.allDone();
             runner = null;

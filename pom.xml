@@ -74,7 +74,7 @@ THE SOFTWARE.
   </issueManagement>
 
   <properties>
-    <revision>2.387.2.0</revision>
+    <revision>2.387.2.1</revision>
     <changelist></changelist>
 
     <!-- configuration for patch tracker plugin  -->

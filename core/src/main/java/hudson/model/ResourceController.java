@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.logging.Logger;
 import jenkins.security.NotReallyRoleSensitiveCallable;
 
 /**
@@ -40,6 +41,7 @@ import jenkins.security.NotReallyRoleSensitiveCallable;
  * @author Kohsuke Kawaguchi
  */
 public class ResourceController {
+    private static final Logger LOGGER = Logger.getLogger(ResourceList.class.getName());
     /**
      * {@link ResourceList}s that are used by activities that are in progress.
      */
@@ -85,6 +87,8 @@ public class ResourceController {
         _withLock(new NotReallyRoleSensitiveCallable<Void, InterruptedException>() {
             @Override
             public Void call() throws InterruptedException {
+
+
                 while (inUse.isCollidingWith(resources)) {
                     // TODO revalidate the resource list after re-acquiring lock, for now we just let the build fail
                     _await();

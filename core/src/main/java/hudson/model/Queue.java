@@ -578,7 +578,6 @@ public class Queue extends ResourceController implements Saveable {
      *      That said, one can still look at {@link Queue.Item#future}, {@link Queue.Item#getId()}, etc.
      */
     public @NonNull ScheduleResult schedule2(Task p, int quietPeriod, List<Action> actions) {
-        // remove nulls
         int queueCapacity = JenkinsLocationConfiguration.get().getQueueCapacity();
         int itemsInQueCount = getItems().length;
 
@@ -589,6 +588,7 @@ public class Queue extends ResourceController implements Saveable {
             }
         }
 
+        // remove nulls
         final List<Action> actions2 = new ArrayList<>(actions);
         actions2.removeIf(Objects::isNull);
 
@@ -620,8 +620,8 @@ public class Queue extends ResourceController implements Saveable {
      */
     private void logQueInfo(String title) {
 
-        String dmsg = String.format(title + " => T_ID:%d STANDBY_COUNT:%d, QUEUE_INFO(wait:%d buildable:%d pending:%d blocked:%d)",
-            Thread.currentThread().getId(), standbyCounter.get(), waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size());
+        String dmsg = String.format(title + " => T_ID:%d STANDBY:%d, QUEUE(wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
+            Thread.currentThread().getId(), standbyCounter.get(), waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), Run.getRunners().size());
         LOGGER.log(Level.INFO, dmsg);
     }
 
@@ -1630,7 +1630,10 @@ public class Queue extends ResourceController implements Saveable {
                         if (r != null) {
 
                             p.leave(this);
-                            r.run();
+                            // Kenny, stop generating thread in for loop
+                            executorService.execute(r);
+//                            r.run();
+                            //
                             // JENKINS-28926 we have removed a task from the blocked projects and added to building
                             // thus we should update the snapshot so that subsequent blocked projects can correctly
                             // determine if they are blocked by the lucky winner
@@ -1660,7 +1663,9 @@ public class Queue extends ResourceController implements Saveable {
                     String topTaskDisplayName = LOGGER.isLoggable(Level.FINEST) ? top.task.getFullDisplayName() : null;
                     if (r != null) {
                         LOGGER.log(Level.FINEST, "Executing runnable {0}", topTaskDisplayName);
-                        r.run();
+                        // Kenny, stop generating thread in for loop
+                        executorService.execute(r);
+//                         r.run();
                     } else {
                         LOGGER.log(Level.FINEST, "Item {0} was unable to be made a buildable and is now a blocked item.", topTaskDisplayName);
                         new BlockedItem(top, CauseOfBlockage.fromMessage(Messages._Queue_HudsonIsAboutToShutDown())).enter(this);
@@ -1707,7 +1712,9 @@ public class Queue extends ResourceController implements Saveable {
                     if (r != null) {
                         p.leave(this);
                         LOGGER.log(Level.FINEST, "Executing flyweight task {0}", taskDisplayName);
-                        r.run();
+                        // Kenny,
+                        executorService.execute(r);
+//                        r.run();
                         updateSnapshot();
                     }
                 } else {

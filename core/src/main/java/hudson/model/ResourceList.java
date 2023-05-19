@@ -112,6 +112,7 @@ public final class ResourceList {
      * resource access.
      */
     public boolean isCollidingWith(ResourceList that) {
+
         return getConflict(that) != null;
     }
 
@@ -119,7 +120,7 @@ public final class ResourceList {
      * Returns the resource in this list that's colliding with the given resource list.
      */
     public Resource getConflict(ResourceList that) {
-        Resource r = _getConflict(this, that);
+        Resource r = _getConflict(this, that);;
         if (r != null)     return r;
         return _getConflict(that, this);
     }

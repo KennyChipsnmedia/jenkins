@@ -37,13 +37,14 @@ THE SOFTWARE.
       </div>
     </j:if>
     <j:if test="${app.isOverloaded()}">
-      <div style="background-color:#FFEB3B;
-                  border-radius:var(--form-input-border-radius);
-                  color:#000;
-                  font-weight:700;
-                  margin-bottom:var(--section-padding);
-                  padding:.5em;
-                  text-align:center">${%Queue Overloaded}
+      <div style="font-weight: bold;
+              color: white;
+              background-color: #ef2929;
+              text-align: center;
+              margin-bottom: var(--section-padding);
+              padding: 0.5em;
+              -moz-border-radius: 0.5em;
+              border-radius: var(--form-input-border-radius);">${%Queue Overloaded. Can't run anything.}
       </div>
     </j:if>
     <a name="skip2content" />
