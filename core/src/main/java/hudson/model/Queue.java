@@ -599,7 +599,7 @@ public class Queue extends ResourceController implements Saveable {
                     if (!h.shouldSchedule(p, actions2))
                         return ScheduleResult.refused();    // veto
                 standbyCounter.incrementAndGet();
-                logQueInfo("schedule2");
+                logQueInfo("schedule2", false);
                 return scheduleInternal(p, quietPeriod, actions2);
             }
 
@@ -618,11 +618,20 @@ public class Queue extends ResourceController implements Saveable {
     /**
      * Author: Kenny, log Queue information
      */
-    private void logQueInfo(String title) {
+    private void logQueInfo(String title, boolean withExit) {
 
-        String dmsg = String.format(title + " => T_ID:%d STANDBY:%d, QUEUE(wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
-            Thread.currentThread().getId(), standbyCounter.get(), waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), Run.getRunners().size());
+        long remain =  WaitingItem.ENTERED.get() - LeftItem.LEFT.get();
+        long working = waitingList.size() + buildables.size() + pendings.size() + blockedProjects.size();
+        long diff = Math.abs(remain - working);
+
+        String dmsg = String.format(title + " => T_ID:%d STANDBY:%d, QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
+            Thread.currentThread().getId(), standbyCounter.get(), WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), Run.getRunners().size());
         LOGGER.log(Level.INFO, dmsg);
+
+        // force stop to debug,
+        if(withExit && diff != 0) {
+            LOGGER.log(Level.SEVERE, "diff not 0, remain and working must be identical");
+        }
     }
 
     public long getStandbyCount() {
@@ -666,7 +675,8 @@ public class Queue extends ResourceController implements Saveable {
                 }
             }
             if (duplicatesInQueue.isEmpty()) {
-                LOGGER.log(Level.FINE, "{0} added to queue", p);
+                // BAD_LOG
+//                LOGGER.log(Level.FINE, "{0} added to queue", p);
 
                 // put the item in the queue
                 WaitingItem added = new WaitingItem(due, p, actions);
@@ -675,15 +685,16 @@ public class Queue extends ResourceController implements Saveable {
                 executorService.submit(new Callable<Void>() {
                     @Override
                     public Void call() throws Exception {
+
                         try {
-                            Thread.sleep(1000);
+                            Thread.sleep(1000 );
                         }
                         catch (Exception e) {
                             LOGGER.log(Level.WARNING, e.getMessage(), e);
                         }
-                        if (standbyCounter.decrementAndGet() == 0) {
-                            LOGGER.log(Level.INFO, "do scheduleMaintenance T_ID:" + Thread.currentThread().getId());
-                            maintainerThread.submit();
+                        if (standbyCounter.decrementAndGet() == 0 ) {
+                            LOGGER.log(Level.INFO, "do scheduleMaintenance S 0 T_ID:" + Thread.currentThread().getId());
+                            scheduleMaintenance();
                         }
 
                         return  null;
@@ -793,7 +804,8 @@ public class Queue extends ResourceController implements Saveable {
     private void updateSnapshot() {
         Snapshot revised = new Snapshot(waitingList, blockedProjects, buildables, pendings);
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "{0} → {1}; leftItems={2}", new Object[] {snapshot, revised, leftItems.asMap()});
+            // BAD_LOG
+//            LOGGER.log(Level.FINEST, "{0} → {1}; leftItems={2}", new Object[] {snapshot, revised, leftItems.asMap()});
         }
         snapshot = revised;
     }
@@ -1072,9 +1084,12 @@ public class Queue extends ResourceController implements Saveable {
      */
     public boolean isPending(Task t) {
         Snapshot snapshot = this.snapshot;
-        for (BuildableItem i : snapshot.pendings)
+        for (BuildableItem i : snapshot.pendings) {
+
             if (i.task.equals(t))
                 return true;
+        }
+
         return false;
     }
 
@@ -1235,7 +1250,6 @@ public class Queue extends ResourceController implements Saveable {
         try { try {
             final WorkUnit wu = exec.getCurrentWorkUnit();
             pendings.remove(wu.context.item);
-
             LeftItem li = new LeftItem(wu.context);
             li.enter(this);
         } finally { updateSnapshot(); } } finally {
@@ -1630,9 +1644,7 @@ public class Queue extends ResourceController implements Saveable {
                         if (r != null) {
 
                             p.leave(this);
-                            // Kenny, stop generating thread in for loop
-                            executorService.execute(r);
-//                            r.run();
+                            r.run();
                             //
                             // JENKINS-28926 we have removed a task from the blocked projects and added to building
                             // thus we should update the snapshot so that subsequent blocked projects can correctly
@@ -1663,9 +1675,7 @@ public class Queue extends ResourceController implements Saveable {
                     String topTaskDisplayName = LOGGER.isLoggable(Level.FINEST) ? top.task.getFullDisplayName() : null;
                     if (r != null) {
                         LOGGER.log(Level.FINEST, "Executing runnable {0}", topTaskDisplayName);
-                        // Kenny, stop generating thread in for loop
-                        executorService.execute(r);
-//                         r.run();
+                         r.run();
                     } else {
                         LOGGER.log(Level.FINEST, "Item {0} was unable to be made a buildable and is now a blocked item.", topTaskDisplayName);
                         new BlockedItem(top, CauseOfBlockage.fromMessage(Messages._Queue_HudsonIsAboutToShutDown())).enter(this);
@@ -1712,9 +1722,7 @@ public class Queue extends ResourceController implements Saveable {
                     if (r != null) {
                         p.leave(this);
                         LOGGER.log(Level.FINEST, "Executing flyweight task {0}", taskDisplayName);
-                        // Kenny,
-                        executorService.execute(r);
-//                        r.run();
+                        r.run();
                         updateSnapshot();
                     }
                 } else {
@@ -1736,7 +1744,8 @@ public class Queue extends ResourceController implements Saveable {
                                     new Object[]{j, taskDisplayName});
                             candidates.add(j);
                         } else {
-                            LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
+                            // BAD_LOG
+//                            LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
                         }
                     }
 
@@ -2611,6 +2620,9 @@ public class Queue extends ResourceController implements Saveable {
      */
     public static final class WaitingItem extends Item implements Comparable<WaitingItem> {
         private static final AtomicLong COUNTER = new AtomicLong(0);
+        public static final AtomicLong ENTERED = new AtomicLong(0);
+
+        // Kenny
 
         /**
          * This item can be run after this time.
@@ -2647,6 +2659,7 @@ public class Queue extends ResourceController implements Saveable {
         @Override
         /*package*/ void enter(Queue q) {
             if (q.waitingList.add(this)) {
+                ENTERED.incrementAndGet();
                 Listeners.notify(QueueListener.class, true, l -> l.onEnterWaiting(this));
             }
         }
@@ -2853,6 +2866,7 @@ public class Queue extends ResourceController implements Saveable {
      */
     public static final class LeftItem extends Item {
         public final WorkUnitContext outcome;
+        public static final AtomicLong LEFT = new AtomicLong(0);
 
         /**
          * When item has left the queue and begin executing.
@@ -2894,11 +2908,12 @@ public class Queue extends ResourceController implements Saveable {
 
         @Override
         void enter(Queue q) {
+            LEFT.incrementAndGet();
             q.leftItems.put(getId(), this);
             Listeners.notify(QueueListener.class, true, l -> l.onLeft(this));
 
-            q.logQueInfo("onLeft");
-            q.scheduleMaintenance();
+            q.logQueInfo("onLeft", true);
+//            q.scheduleMaintenance();
         }
 
         @Override
@@ -3002,18 +3017,8 @@ public class Queue extends ResourceController implements Saveable {
         protected void doRun() {
             Queue q = queue.get();
             if (q != null) {
-
-                q.logQueInfo("periodic");
+                q.logQueInfo("periodic", false);
                 q.maintain();
-
-//                if (q.getStandbyCount() == 0) {
-//                    q.logQueInfo("periodic-Y");
-//                    q.maintain();
-//                }
-//                else {
-//                    q.logQueInfo("periodic-N");
-//                }
-
             }
 
             else
@@ -3126,12 +3131,14 @@ public class Queue extends ResourceController implements Saveable {
 
         private BuildableRunnable(BuildableItem p) {
             this.buildableItem = p;
+
         }
 
         @Override
         public void run() {
             //the flyweighttask enters the buildables queue and will ask Jenkins to provision a node
-            buildableItem.enter(Queue.this);
+//            buildableItem.enter(Queue.this);
+            this.buildableItem.enter(Queue.this);
         }
     }
 

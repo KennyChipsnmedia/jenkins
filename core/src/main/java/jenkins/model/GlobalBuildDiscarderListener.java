@@ -65,7 +65,6 @@ public class GlobalBuildDiscarderListener extends RunListener<Run> {
     public void onFinalized(Run run) {
         runners.remove(run.getNumber());
 
-//        LOGGER.log(Level.FINE, "Kenny check if parent job name:{0} exists", new Object[] {run.getParent().getName()});
         LOGGER.log(Level.FINER, "Kenny GlobalBuildDiscarderListener check if parent job name:{0} exists", new Object[] {run.getParent().getName()});
 
         List<Map.Entry<Integer, Run>> siblings = runners.entrySet().stream().filter(r -> r.getValue().getParent().getName().equals(run.getParent().getName())).collect(Collectors.toList());

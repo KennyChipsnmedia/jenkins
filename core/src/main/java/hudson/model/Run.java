@@ -30,6 +30,7 @@ package hudson.model;
 
 import static java.util.logging.Level.FINE;
 import static java.util.logging.Level.FINER;
+import static java.util.logging.Level.INFO;
 import static java.util.logging.Level.SEVERE;
 import static java.util.logging.Level.WARNING;
 
@@ -376,7 +377,8 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
         getDataFile().unmarshal(this); // load the rest of the data
 
         if (state == State.COMPLETED) {
-            LOGGER.log(FINER, "reload {0} @{1}", new Object[] {this, hashCode()});
+            // BAD_LOG
+//            LOGGER.log(FINER, "reload {0} @{1}", new Object[] {this, hashCode()});
         } else {
             LOGGER.log(WARNING, "reload {0} @{1} with anomalous state {2}", new Object[] {this, hashCode(), state});
         }
@@ -1977,6 +1979,7 @@ public abstract class Run<JobT extends Job<JobT, RunT>, RunT extends Run<JobT, R
                 LOGGER.log(Level.FINER, "Kenny 1978 check if parent job name:{0} exists", new Object[] {getParent().getName()});
                 List<Map.Entry<Integer, Run>> siblings = runners.entrySet().stream().filter(r -> r.getValue().getParent().getName().equals(this.getParent().getName())).collect(Collectors.toList());
                 if (siblings.size() == 0) {
+                    LOGGER.log(Level.INFO, "job name:{0} buildNumber:{1} no more exists in runners, so do logRotate", new Object[] {getParent().getName(), getNumber()});
                     getParent().logRotate();
                 }
                 LOGGER.log(FINER, "Kenny 1978 log rotate done on {0}", this);

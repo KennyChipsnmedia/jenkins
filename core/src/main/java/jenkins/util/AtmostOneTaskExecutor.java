@@ -114,8 +114,11 @@ public class AtmostOneTaskExecutor<V> {
                         synchronized (AtmostOneTaskExecutor.this) {
                             // if next one is pending, get that scheduled
                             inprogress = null;
-                            // Kenny, Don't do again, just do once at a time.
-//                            maybeRun();
+                            try {
+                                Thread.sleep(100);
+                            }
+                            catch (Exception e) {}
+                            maybeRun();
                         }
                     }
                     return null;
