@@ -1083,12 +1083,12 @@ public class Queue extends ResourceController implements Saveable {
      * Is the given task currently pending execution?
      */
     public boolean isPending(Task t) {
-//        Snapshot snapshot = this.snapshot;
-//        for (BuildableItem i : snapshot.pendings) {
-//            i.buildableStartMilliseconds
-//            if (i.task.equals(t))
-//                return true;
-//        }
+        Snapshot snapshot = this.snapshot;
+        for (BuildableItem i : snapshot.pendings) {
+            i.buildableStartMilliseconds
+            if (i.task.equals(t))
+                return true;
+        }
 
         return false;
     }
