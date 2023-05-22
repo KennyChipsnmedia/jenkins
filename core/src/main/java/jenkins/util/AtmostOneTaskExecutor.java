@@ -117,7 +117,9 @@ public class AtmostOneTaskExecutor<V> {
                             try {
                                 Thread.sleep(100);
                             }
-                            catch (Exception e) {}
+                            catch (Exception e) {
+                                // do nothing
+                            }
                             maybeRun();
                         }
                     }

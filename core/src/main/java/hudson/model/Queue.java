@@ -629,7 +629,7 @@ public class Queue extends ResourceController implements Saveable {
         LOGGER.log(Level.INFO, dmsg);
 
         // force stop to debug,
-        if(withExit && diff != 0) {
+        if (withExit && diff != 0) {
             LOGGER.log(Level.SEVERE, "diff not 0, remain and working must be identical");
         }
     }
@@ -687,12 +687,12 @@ public class Queue extends ResourceController implements Saveable {
                     public Void call() throws Exception {
 
                         try {
-                            Thread.sleep(1000 );
+                            Thread.sleep(1000);
                         }
                         catch (Exception e) {
                             LOGGER.log(Level.WARNING, e.getMessage(), e);
                         }
-                        if (standbyCounter.decrementAndGet() == 0 ) {
+                        if (standbyCounter.decrementAndGet() == 0) {
                             LOGGER.log(Level.INFO, "do scheduleMaintenance S 0 T_ID:" + Thread.currentThread().getId());
                             scheduleMaintenance();
                         }
@@ -1083,12 +1083,12 @@ public class Queue extends ResourceController implements Saveable {
      * Is the given task currently pending execution?
      */
     public boolean isPending(Task t) {
-        Snapshot snapshot = this.snapshot;
-        for (BuildableItem i : snapshot.pendings) {
-
-            if (i.task.equals(t))
-                return true;
-        }
+//        Snapshot snapshot = this.snapshot;
+//        for (BuildableItem i : snapshot.pendings) {
+//            i.buildableStartMilliseconds
+//            if (i.task.equals(t))
+//                return true;
+//        }
 
         return false;
     }
