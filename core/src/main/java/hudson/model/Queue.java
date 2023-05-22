@@ -1085,7 +1085,6 @@ public class Queue extends ResourceController implements Saveable {
     public boolean isPending(Task t) {
         Snapshot snapshot = this.snapshot;
         for (BuildableItem i : snapshot.pendings) {
-            i.buildableStartMilliseconds
             if (i.task.equals(t))
                 return true;
         }
