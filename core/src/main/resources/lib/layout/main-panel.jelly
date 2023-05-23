@@ -44,7 +44,7 @@ THE SOFTWARE.
               margin-bottom: var(--section-padding);
               padding: 0.5em;
               -moz-border-radius: 0.5em;
-              border-radius: var(--form-input-border-radius);">${%Queue Overloaded. Can't run anything.}
+              border-radius: var(--form-input-border-radius);">${%Queue overloaded. Can't run anything.}
       </div>
     </j:if>
     <a name="skip2content" />

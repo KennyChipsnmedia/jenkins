@@ -498,9 +498,6 @@ public abstract class ParameterizedJobMixIn<JobT extends Job<JobT, RunT> & Param
 
         @Override
         default RunT createExecutable() throws IOException {
-            if (isDisabled()) {
-                return null;
-            }
             if (this instanceof LazyBuildMixIn.LazyLoadingJob) {
                 return (RunT) ((LazyBuildMixIn.LazyLoadingJob) this).getLazyBuildMixIn().newBuild();
             }
@@ -508,12 +505,6 @@ public abstract class ParameterizedJobMixIn<JobT extends Job<JobT, RunT> & Param
         }
 
         default boolean isBuildable() {
-            // Kenny
-            /*
-            if (Jenkins.get().isOverloaded()) {
-                return false;
-            }
-            */
             return !isDisabled() && !((Job) this).isHoldOffBuildUntilSave();
         }
 

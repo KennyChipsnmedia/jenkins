@@ -582,7 +582,7 @@ public class Queue extends ResourceController implements Saveable {
         int itemsInQueCount = getItems().length;
 
         if (queueCapacity != 0) {
-            if (itemsInQueCount > queueCapacity) {
+            if (itemsInQueCount >= queueCapacity) {
                 LOGGER.log(Level.INFO, "Refused, ITEMS_IN_QUEUE_COUNT:" + itemsInQueCount + " is greater than QUEUE_CAPACITY:" + queueCapacity);
                 return ScheduleResult.refused();
             }

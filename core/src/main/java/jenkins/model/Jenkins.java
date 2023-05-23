@@ -2942,7 +2942,7 @@ public class Jenkins extends AbstractCIBase implements DirectlyModifiableTopLeve
         int queueSize = getQueue().getItems().length;
         int queueCapacity = JenkinsLocationConfiguration.get().getQueueCapacity();
         if (queueCapacity != 0) {
-            if (queueSize > queueCapacity) {
+            if (queueSize >= queueCapacity) {
                 return true;
             }
         }
@@ -5050,6 +5050,17 @@ public class Jenkins extends AbstractCIBase implements DirectlyModifiableTopLeve
             if (!Jenkins.get().hasPermission(link.getRequiredPermission())) {
                 continue;
             }
+
+            // Kenny, prevent trigger Rebuild when overloaded.
+            String displayName = link.getDisplayName();
+            if (displayName != null) {
+                if (displayName.equals("Rebuild")) {
+                    if (isOverloaded()) {
+                        continue;
+                    }
+                }
+            }
+
             byCategory.computeIfAbsent(link.getCategory(), c -> new ArrayList<>()).add(link);
         }
         return byCategory;
