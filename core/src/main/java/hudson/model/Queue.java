@@ -1707,10 +1707,10 @@ public class Queue extends ResourceController implements Saveable {
 
         // allocate buildable jobs to executors
         for (BuildableItem p : new ArrayList<>(
-
             buildables.keySet())) { // copy as we'll mutate the list in the loop
             // one last check to make sure this build is not blocked.
 
+            boolean executed = false;
             lock.lock();
             try { try {
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
@@ -1758,6 +1758,12 @@ public class Queue extends ResourceController implements Saveable {
                         }
                     }
 
+                    if(candidates.size() == 0) {
+                        LOGGER.log(Level.FINER, "candidates 0 for {0}", p);
+                        continue;
+                    }
+
+
                     MappingWorksheet ws = new MappingWorksheet(p, candidates);
                     Mapping m = loadBalancer.map(p.task, ws);
                     if (m == null) {
@@ -1776,7 +1782,7 @@ public class Queue extends ResourceController implements Saveable {
                     LOGGER.log(Level.FINEST, "Found a matching executor for {0}. Using it.", taskDisplayName);
                     logQueInfo("onExecute", true);
                     m.execute(wuc);
-
+                    executed = true;
                     p.leave(this);
                     if (!wuc.getWorkUnits().isEmpty()) {
                         LOGGER.log(Level.FINEST, "BuildableItem {0} marked as pending.", taskDisplayName);
@@ -1784,6 +1790,8 @@ public class Queue extends ResourceController implements Saveable {
                     }
                     else
                         LOGGER.log(Level.FINEST, "BuildableItem {0} with empty work units!?", p);
+
+
 
                     // Ensure that identification of blocked tasks is using the live state: JENKINS-27708 & JENKINS-27871
                     // The creation of a snapshot itself should be relatively cheap given the expected rate of
@@ -1798,15 +1806,21 @@ public class Queue extends ResourceController implements Saveable {
                     updateSnapshot();
                 }
 
-//                try {
-//                    Thread.sleep(500);
-//                }
-//                catch (Exception e) {
-//
-//                }
+
 
             } finally { updateSnapshot(); } } finally {
                 lock.unlock();
+
+                // wait 100ms job to be executed
+                if (executed) {
+                    try {
+                        Thread.sleep(1000);
+                    }
+                    catch (Exception e) {
+
+                    }
+                }
+
             }
         }
 
@@ -1824,6 +1838,7 @@ public class Queue extends ResourceController implements Saveable {
      * and it also gets invoked periodically (see {@link Queue.MaintainTask}.)
      */
     public void maintain() {
+        LOGGER.log(Level.INFO, "maintain starting...");
         outerLock.lock();
         try {
             Map<Executor, JobOffer> parked = prepare();
@@ -1834,6 +1849,7 @@ public class Queue extends ResourceController implements Saveable {
         finally {
             outerLock.unlock();
         }
+        LOGGER.log(Level.INFO, "maintain done...");
     }
 
     /**
@@ -3116,7 +3132,7 @@ public class Queue extends ResourceController implements Saveable {
                 item.cancel(Queue.this);
             }
 
-            super.clear();
+//            super.clear();
         }
 
         public boolean add(T item) {
