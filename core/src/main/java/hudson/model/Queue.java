@@ -99,6 +99,7 @@ import java.util.Objects;
 import java.util.Set;
 //import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -179,6 +180,7 @@ public class Queue extends ResourceController implements Saveable {
     // Kenny
     private final ExecutorService executorService;
     private static AtomicLong standbyCounter = new AtomicLong(0);
+    private static Map<BuildableItem, WorkUnitContext> bridge = new ConcurrentHashMap<>();
     //
 
     /**
@@ -1251,7 +1253,8 @@ public class Queue extends ResourceController implements Saveable {
      *
      * This moves the task from the pending state to the "left the queue" state.
      */
-    /*package*/ void onStartExecuting(Executor exec) throws InterruptedException {
+    /*package*/
+    void onStartExecutingOrg(Executor exec) throws InterruptedException {
         lock.lock();
         try { try {
             final WorkUnit wu = exec.getCurrentWorkUnit();
@@ -1261,6 +1264,13 @@ public class Queue extends ResourceController implements Saveable {
         } finally { updateSnapshot(); } } finally {
             lock.unlock();
         }
+    }
+
+    void onStartExecuting(Executor exec) throws InterruptedException {
+        final WorkUnit wu = exec.getCurrentWorkUnit();
+        bridge.remove(wu.context.item);
+        LeftItem li = new LeftItem(wu.context);
+        li.enter(this);
     }
 
     /**
@@ -1419,6 +1429,19 @@ public class Queue extends ResourceController implements Saveable {
         } else {
             return queue._withLock(callable);
         }
+    }
+
+    public static <V> V withoutLock(java.util.concurrent.Callable<V> callable) throws Exception {
+//        final Jenkins jenkins = Jenkins.getInstanceOrNull();
+//        // TODO confirm safe to assume non-null and use getInstance()
+//        final Queue queue = jenkins == null ? null : jenkins.getQueue();
+//        if (queue == null) {
+//            return callable.call();
+//        } else {
+//            return queue._withLock(callable);
+//        }
+
+        return callable.call();
     }
 
     /**
@@ -1684,6 +1707,7 @@ public class Queue extends ResourceController implements Saveable {
                 }
             }
 
+            // Ensure that identification of blocked tasks is using the live state: JENKINS-27708 & JENKINS-27871
             if (s != null) {
                 try {
                     s.sortBuildableItems(new ArrayList<>(buildables.keySet()));
@@ -1694,8 +1718,18 @@ public class Queue extends ResourceController implements Saveable {
                 }
             }
 
-            // Ensure that identification of blocked tasks is using the live state: JENKINS-27708 & JENKINS-27871
+            Iterator<Map.Entry<BuildableItem, Task>> iter = pendings.entrySet().iterator();
+            while(iter.hasNext()) {
+                Map.Entry<BuildableItem, Task> entry = iter.next();
+                BuildableItem pending = entry.getKey();
+                if(!bridge.containsKey(pending)) {
+                    iter.remove();
+                    break;
+                }
+            }
+
             updateSnapshot();
+
             return parked;
 
         } finally { updateSnapshot(); } } finally {
@@ -1780,9 +1814,9 @@ public class Queue extends ResourceController implements Saveable {
                     // found a matching executor. use it.
                     WorkUnitContext wuc = new WorkUnitContext(p);
                     LOGGER.log(Level.FINEST, "Found a matching executor for {0}. Using it.", taskDisplayName);
-                    logQueInfo("onExecute", true);
-                    m.execute(wuc);
-                    executed = true;
+
+
+
                     p.leave(this);
                     if (!wuc.getWorkUnits().isEmpty()) {
                         LOGGER.log(Level.FINEST, "BuildableItem {0} marked as pending.", taskDisplayName);
@@ -1790,6 +1824,13 @@ public class Queue extends ResourceController implements Saveable {
                     }
                     else
                         LOGGER.log(Level.FINEST, "BuildableItem {0} with empty work units!?", p);
+
+                    //
+                    bridge.put(p, wuc);
+                    logQueInfo("onExecute", true);
+                    m.execute(wuc);
+                    executed = true;
+                    //
 
 
 
@@ -1812,14 +1853,14 @@ public class Queue extends ResourceController implements Saveable {
                 lock.unlock();
 
                 // wait 100ms job to be executed
-                if (executed) {
-                    try {
-                        Thread.sleep(1000);
-                    }
-                    catch (Exception e) {
-
-                    }
-                }
+//                if (executed) {
+//                    try {
+//                        Thread.sleep(1000);
+//                    }
+//                    catch (Exception e) {
+//
+//                    }
+//                }
 
             }
         }
