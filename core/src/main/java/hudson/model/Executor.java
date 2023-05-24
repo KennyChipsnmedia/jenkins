@@ -463,6 +463,7 @@ public class Executor extends Thread implements ModelObject {
                 } finally {
                     lock.readLock().unlock();
                 }
+
                 if (needFinish1) {
                     finish1(problems);
                 }
@@ -476,6 +477,9 @@ public class Executor extends Thread implements ModelObject {
             if (asynchronousExecution == null) {
                 finish2();
             }
+
+            queue.logQueInfo(workUnit.context.item.task.getName() + "#" + getNumber() + " done", false);
+            queue.scheduleMaintenance();
         }
 
 

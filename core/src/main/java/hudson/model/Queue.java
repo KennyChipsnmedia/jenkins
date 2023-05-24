@@ -178,7 +178,7 @@ public class Queue extends ResourceController implements Saveable {
 
     // Kenny
     private final ExecutorService executorService;
-    private AtomicLong standbyCounter = new AtomicLong(0);
+    private static AtomicLong standbyCounter = new AtomicLong(0);
     //
 
     /**
@@ -618,7 +618,7 @@ public class Queue extends ResourceController implements Saveable {
     /**
      * Author: Kenny, log Queue information
      */
-    private void logQueInfo(String title, boolean withExit) {
+    public void logQueInfo(String title, boolean withExit) {
 
         long remain =  WaitingItem.ENTERED.get() - LeftItem.LEFT.get();
         long working = waitingList.size() + buildables.size() + pendings.size() + blockedProjects.size();
@@ -692,10 +692,13 @@ public class Queue extends ResourceController implements Saveable {
                         catch (Exception e) {
                             LOGGER.log(Level.WARNING, e.getMessage(), e);
                         }
-                        if (standbyCounter.decrementAndGet() == 0) {
-                            LOGGER.log(Level.INFO, "do scheduleMaintenance S 0 T_ID:" + Thread.currentThread().getId());
-                            scheduleMaintenance();
-                        }
+//                        if (standbyCounter.decrementAndGet() == 0) {
+//                            LOGGER.log(Level.INFO, "do scheduleMaintenance S 0 T_ID:" + Thread.currentThread().getId());
+//                            scheduleMaintenance();
+//                        }
+//
+                        standbyCounter.decrementAndGet();
+                        scheduleMaintenance();
 
                         return  null;
                     }
@@ -1266,7 +1269,12 @@ public class Queue extends ResourceController implements Saveable {
      */
     @WithBridgeMethods(void.class)
     public Future<?> scheduleMaintenance() {
-        return maintainerThread.submit();
+        if(standbyCounter.get() == 0) {
+            return maintainerThread.submit();
+        }
+        else {
+            return null;
+        }
 //        return maintainerThread.submit();
         // Kenny
         /*
@@ -3009,6 +3017,7 @@ public class Queue extends ResourceController implements Saveable {
 
         private void periodic() {
             long interval = 5000;
+//            long interval = 1000;
             Timer.get().scheduleWithFixedDelay(this, interval, interval, TimeUnit.MILLISECONDS);
         }
 
@@ -3017,7 +3026,10 @@ public class Queue extends ResourceController implements Saveable {
             Queue q = queue.get();
             if (q != null) {
                 q.logQueInfo("periodic", false);
-                q.maintain();
+                if(standbyCounter.get() == 0) {
+                    q.maintain();
+                }
+
             }
 
             else
