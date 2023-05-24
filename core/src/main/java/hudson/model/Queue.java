@@ -349,6 +349,9 @@ public class Queue extends ResourceController implements Saveable {
 
     private final transient ReentrantLock lock = new ReentrantLock();
 
+    // Kenny, bond maintain()
+    private final transient ReentrantLock outerLock = new ReentrantLock();
+
     private final transient Condition condition = lock.newCondition();
 
     public Queue(@NonNull LoadBalancer loadBalancer) {
@@ -1564,27 +1567,13 @@ public class Queue extends ResourceController implements Saveable {
         }
     }
 
-    /**
-     * Queue maintenance.
-     *
-     * <p>
-     * Move projects between {@link #waitingList}, {@link #blockedProjects}, {@link #buildables}, and {@link #pendings}
-     * appropriately.
-     *
-     * <p>
-     * Jenkins internally invokes this method by itself whenever there's a change that can affect
-     * the scheduling (such as new node becoming online, # of executors change, a task completes execution, etc.),
-     * and it also gets invoked periodically (see {@link Queue.MaintainTask}.)
-     */
-    public void maintain() {
+    public Map<Executor, JobOffer> prepare() {
         Jenkins jenkins = Jenkins.getInstanceOrNull();
         if (jenkins == null) {
-            return;
+            return null;
         }
-
         lock.lock();
         try { try {
-
             LOGGER.log(Level.FINE, "Queue maintenance started on {0} with {1}", new Object[] {this, snapshot});
 
             // The executors that are currently waiting for a job to run.
@@ -1600,8 +1589,8 @@ public class Queue extends ResourceController implements Saveable {
                             // while it is interrupted. (All this dancing is a result of Executor extending Thread)
                             lostPendings.clear(); // we'll get them next time around when the flag is cleared.
                             LOGGER.log(Level.FINEST,
-                                    "Interrupt thread for executor {0} is set and we do not know what work unit was on the executor.",
-                                    e.getDisplayName());
+                                "Interrupt thread for executor {0} is set and we do not know what work unit was on the executor.",
+                                e.getDisplayName());
                             continue;
                         }
                         if (e.isParking()) {
@@ -1644,8 +1633,8 @@ public class Queue extends ResourceController implements Saveable {
                     CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
                     if (causeOfBlockage == null) {
                         LOGGER.log(Level.FINEST,
-                                "BlockedItem {0}: blocked -> buildable as the build is not blocked and new tasks are allowed",
-                                taskDisplayName);
+                            "BlockedItem {0}: blocked -> buildable as the build is not blocked and new tasks are allowed",
+                            taskDisplayName);
 
                         // ready to be executed
                         Runnable r = makeBuildable(new BuildableItem(p));
@@ -1683,7 +1672,7 @@ public class Queue extends ResourceController implements Saveable {
                     String topTaskDisplayName = LOGGER.isLoggable(Level.FINEST) ? top.task.getFullDisplayName() : null;
                     if (r != null) {
                         LOGGER.log(Level.FINEST, "Executing runnable {0}", topTaskDisplayName);
-                         r.run();
+                        r.run();
                     } else {
                         LOGGER.log(Level.FINEST, "Item {0} was unable to be made a buildable and is now a blocked item.", topTaskDisplayName);
                         new BlockedItem(top, CauseOfBlockage.fromMessage(Messages._Queue_HudsonIsAboutToShutDown())).enter(this);
@@ -1707,11 +1696,23 @@ public class Queue extends ResourceController implements Saveable {
 
             // Ensure that identification of blocked tasks is using the live state: JENKINS-27708 & JENKINS-27871
             updateSnapshot();
+            return parked;
 
-            // allocate buildable jobs to executors
-            for (BuildableItem p : new ArrayList<>(
-                    buildables.keySet())) { // copy as we'll mutate the list in the loop
-                // one last check to make sure this build is not blocked.
+        } finally { updateSnapshot(); } } finally {
+            lock.unlock();
+        }
+    }
+
+    public void allocate(Map<Executor, JobOffer> parked) {
+
+        // allocate buildable jobs to executors
+        for (BuildableItem p : new ArrayList<>(
+
+            buildables.keySet())) { // copy as we'll mutate the list in the loop
+            // one last check to make sure this build is not blocked.
+
+            lock.lock();
+            try { try {
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
                 if (causeOfBlockage != null) {
                     p.leave(this);
@@ -1748,8 +1749,8 @@ public class Queue extends ResourceController implements Saveable {
                         }
                         if (reason == null) {
                             LOGGER.log(Level.FINEST,
-                                    "{0} is a potential candidate for task {1}",
-                                    new Object[]{j, taskDisplayName});
+                                "{0} is a potential candidate for task {1}",
+                                new Object[]{j, taskDisplayName});
                             candidates.add(j);
                         } else {
                             // BAD_LOG
@@ -1764,7 +1765,7 @@ public class Queue extends ResourceController implements Saveable {
                         // just leave it in the buildables list and
                         // check if we can execute other projects
                         LOGGER.log(Level.FINER, "Failed to map {0} to executors. candidates={1} parked={2}",
-                                new Object[]{p, candidates, parked.values()});
+                            new Object[]{p, candidates, parked.values()});
                         List<CauseOfBlockage> reasons = reasonMap.values().stream().filter(Objects::nonNull).collect(Collectors.toList());
                         p.transientCausesOfBlockage = reasons.isEmpty() ? null : reasons;
                         continue;
@@ -1796,9 +1797,42 @@ public class Queue extends ResourceController implements Saveable {
                     // for alternative fixes of this issue.
                     updateSnapshot();
                 }
+
+//                try {
+//                    Thread.sleep(500);
+//                }
+//                catch (Exception e) {
+//
+//                }
+
+            } finally { updateSnapshot(); } } finally {
+                lock.unlock();
             }
-        } finally { updateSnapshot(); } } finally {
-            lock.unlock();
+        }
+
+    }
+    /**
+     * Queue maintenance.
+     *
+     * <p>
+     * Move projects between {@link #waitingList}, {@link #blockedProjects}, {@link #buildables}, and {@link #pendings}
+     * appropriately.
+     *
+     * <p>
+     * Jenkins internally invokes this method by itself whenever there's a change that can affect
+     * the scheduling (such as new node becoming online, # of executors change, a task completes execution, etc.),
+     * and it also gets invoked periodically (see {@link Queue.MaintainTask}.)
+     */
+    public void maintain() {
+        outerLock.lock();
+        try {
+            Map<Executor, JobOffer> parked = prepare();
+            if(parked != null) {
+                allocate(parked);
+            }
+        }
+        finally {
+            outerLock.unlock();
         }
     }
 
