@@ -1022,6 +1022,7 @@ public class Queue extends ResourceController implements Saveable {
         return r;
     }
 
+
     /**
      * Gets the snapshot of all {@link BuildableItem}s.
      */
@@ -1590,7 +1591,7 @@ public class Queue extends ResourceController implements Saveable {
             Map<Executor, JobOffer> parked = new HashMap<>();
 
             { // update parked (and identify any pending items whose executor has disappeared)
-                List<BuildableItem> lostPendings = new ArrayList<>(pendings);
+                List<BuildableItem> lostPendings = new ArrayList<>(pendings.keySet());
                 for (Computer c : jenkins.getComputers()) {
                     for (Executor e : c.getAllExecutors()) {
                         if (e.isInterrupted()) {
@@ -1630,7 +1631,7 @@ public class Queue extends ResourceController implements Saveable {
 
             { // blocked -> buildable
                 // copy as we'll mutate the list and we want to process in a potentially different order
-                List<BlockedItem> blockedItems = new ArrayList<>(blockedProjects.values());
+                List<BlockedItem> blockedItems = new ArrayList<>(blockedProjects.keySet());
                 // if facing a cycle of blocked tasks, ensure we process in the desired sort order
                 if (s != null) {
                     s.sortBlockedItems(blockedItems);
@@ -1696,7 +1697,7 @@ public class Queue extends ResourceController implements Saveable {
 
             if (s != null) {
                 try {
-                    s.sortBuildableItems(buildables);
+                    s.sortBuildableItems(new ArrayList<>(buildables.keySet()));
                 } catch (Throwable e) {
                     // We don't really care if the sort doesn't sort anything, we still should
                     // continue to do our job. We'll complain about it and continue.
@@ -1709,7 +1710,7 @@ public class Queue extends ResourceController implements Saveable {
 
             // allocate buildable jobs to executors
             for (BuildableItem p : new ArrayList<>(
-                    buildables)) { // copy as we'll mutate the list in the loop
+                    buildables.keySet())) { // copy as we'll mutate the list in the loop
                 // one last check to make sure this build is not blocked.
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
                 if (causeOfBlockage != null) {
@@ -1772,6 +1773,7 @@ public class Queue extends ResourceController implements Saveable {
                     // found a matching executor. use it.
                     WorkUnitContext wuc = new WorkUnitContext(p);
                     LOGGER.log(Level.FINEST, "Found a matching executor for {0}. Using it.", taskDisplayName);
+                    logQueInfo("onExecute", true);
                     m.execute(wuc);
 
                     p.leave(this);
@@ -3040,68 +3042,66 @@ public class Queue extends ResourceController implements Saveable {
     /**
      * {@link ArrayList} of {@link Item} with more convenience methods.
      */
-    private class ItemList<T extends Item> extends ArrayList<T> {
+    private class ItemList<T extends Item> extends HashMap<T, Task> {
+        public ItemList() {
+
+        }
+        public ItemList(ItemList<T> itemList) {
+            for(Entry<T, Task> entry: itemList.entrySet()) {
+                put(entry.getKey(), entry.getValue());
+            }
+        }
+
         public T get(Task task) {
-            for (T item : this) {
+            for(T item: keySet()) {
                 if (item.task.equals(task)) {
                     return item;
                 }
+
             }
             return null;
         }
 
         public List<T> getAll(Task task) {
-            List<T> result = new ArrayList<>();
-            for (T item : this) {
-                if (item.task.equals(task)) {
-                    result.add(item);
-                }
-            }
-            return result;
+
+            return entrySet().stream().filter(entry -> entry.getValue().equals(task)).map(Map.Entry::getKey).collect(Collectors.toList());
         }
 
-        public boolean containsKey(Task task) {
-            return get(task) != null;
-        }
-
-        public T remove(Task task) {
-            Iterator<T> it = iterator();
-            while (it.hasNext()) {
-                T t = it.next();
-                if (t.task.equals(task)) {
-                    it.remove();
-                    return t;
-                }
-            }
-            return null;
-        }
-
-        public void put(Task task, T item) {
-            assert item.task.equals(task);
-            add(item);
-        }
-
-        public ItemList<T> values() {
-            return this;
-        }
-
-        /**
-         * Works like {@link #remove(Task)} but also marks the {@link Item} as cancelled.
-         */
         public T cancel(Task p) {
             T x = get(p);
             if (x != null) x.cancel(Queue.this);
             return x;
+
         }
 
         @SuppressFBWarnings(value = "IA_AMBIGUOUS_INVOCATION_OF_INHERITED_OR_OUTER_METHOD",
                 justification = "It will invoke the inherited clear() method according to Java semantics. "
                               + "FindBugs recommends suppressing warnings in such case")
         public void cancelAll() {
-            for (T t : new ArrayList<>(this))
-                t.cancel(Queue.this);
-            clear();
+            for(T item: keySet()) {
+                item.cancel(Queue.this);
+            }
+
+            super.clear();
         }
+
+        public boolean add(T item) {
+            super.put(item, item.task);
+            return true;
+        }
+
+        public boolean remove(T item) {
+            if(containsKey(item)) {
+                super.remove(item);
+                return true;
+            }
+            else {
+                return false;
+            }
+
+        }
+
+
     }
 
     private static class Snapshot {
@@ -3110,12 +3110,12 @@ public class Queue extends ResourceController implements Saveable {
         private final List<BuildableItem> buildables;
         private final List<BuildableItem> pendings;
 
-        Snapshot(Set<WaitingItem> waitingList, List<BlockedItem> blockedProjects, List<BuildableItem> buildables,
-                        List<BuildableItem> pendings) {
+        Snapshot(Set<WaitingItem> waitingList, ItemList<BlockedItem> blockedProjects, ItemList<BuildableItem> buildables,
+                 ItemList<BuildableItem> pendings) {
             this.waitingList = new LinkedHashSet<>(waitingList);
-            this.blockedProjects = new ArrayList<>(blockedProjects);
-            this.buildables = new ArrayList<>(buildables);
-            this.pendings = new ArrayList<>(pendings);
+            this.blockedProjects = new ArrayList<>(blockedProjects.keySet());
+            this.buildables = new ArrayList<>(buildables.keySet());
+            this.pendings = new ArrayList<>(pendings.keySet());
         }
 
         @Override
