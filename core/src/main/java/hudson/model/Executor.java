@@ -258,7 +258,7 @@ public class Executor extends Thread implements ModelObject {
         try {
             Result r = interruptStatus;
             if (r == null) r =
-                    Result.ABORTED; // this is when we programmatically throw InterruptedException instead of calling the interrupt method.
+                Result.ABORTED; // this is when we programmatically throw InterruptedException instead of calling the interrupt method.
 
             return r;
         } finally {
@@ -414,14 +414,14 @@ public class Executor extends Thread implements ModelObject {
                 if (executable instanceof Actionable) {
                     if (LOGGER.isLoggable(Level.FINER)) {
                         LOGGER.log(
-                                FINER,
-                                "when running {0} from {1} we are copying {2} actions whereas the item currently has {3}",
-                                new Object[] {
-                                    executable,
-                                    workUnit.context.item,
-                                    workUnit.context.actions,
-                                    workUnit.context.item.getAllActions(),
-                                });
+                            FINER,
+                            "when running {0} from {1} we are copying {2} actions whereas the item currently has {3}",
+                            new Object[] {
+                                executable,
+                                workUnit.context.item,
+                                workUnit.context.actions,
+                                workUnit.context.item.getAllActions(),
+                            });
                     }
                     for (Action action : workUnit.context.actions) {
                         ((Actionable) executable).addAction(action);
@@ -479,7 +479,8 @@ public class Executor extends Thread implements ModelObject {
                 finish2();
             }
 
-            queue.logQueInfo(workUnit.context.item.task.getName() + "#" + getNumber() + " done", false);
+
+            queue.logQueInfo("onDone", false);
             queue.scheduleMaintenance();
         }
 
@@ -494,7 +495,7 @@ public class Executor extends Thread implements ModelObject {
             LOGGER.log(Level.SEVERE, "Executor threw an exception", problems);
             workUnit.context.abort(problems);
         }
-       long time = System.currentTimeMillis() - startTime;
+        long time = System.currentTimeMillis() - startTime;
         LOGGER.log(FINE, "{0} completed {1} in {2}ms", new Object[]{getName(), executable, time});
         try {
             workUnit.context.synchronizeEnd(this, executable, problems, time);
@@ -891,7 +892,7 @@ public class Executor extends Thread implements ModelObject {
         try {
             if (executable != null) {
                 if (runExtId == null || runExtId.isEmpty() || ! (executable instanceof Run)
-                        || (runExtId.equals(((Run<?, ?>) executable).getExternalizableId()))) {
+                    || (runExtId.equals(((Run<?, ?>) executable).getExternalizableId()))) {
                     final Queue.Task ownerTask = getParentOf(executable).getOwnerTask();
                     boolean canAbort = ownerTask.hasAbortPermission();
                     if (canAbort && ownerTask instanceof AccessControlled) {
