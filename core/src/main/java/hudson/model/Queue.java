@@ -1784,8 +1784,7 @@ public class Queue extends ResourceController implements Saveable {
                                 new Object[]{j, taskDisplayName});
                             candidates.add(j);
                         } else {
-                            // BAD_LOG
-//                            LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
+                            LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
                         }
                     }
 
@@ -3113,10 +3112,10 @@ public class Queue extends ResourceController implements Saveable {
         protected void doRun() {
             Queue q = queue.get();
             if (q != null) {
+                q.logQueInfo("onPeriod", false);
                 if (standbyCounter.get() == 0) {
                     q.maintain();
                 }
-                q.logQueInfo("onPeriod", false);
             }
 
             else
