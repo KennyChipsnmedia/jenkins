@@ -91,6 +91,7 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -1741,12 +1742,16 @@ public class Queue extends ResourceController implements Saveable {
 
         // allocate buildable jobs to executors
         logQueInfo("onAllocateStart", false);
+        Map<Executor, JobOffer> reduceParked = new HashMap<>(parked);
+        Map<Task, Set<Node>> rejected = new HashMap<>();
         for (BuildableItem p : new ArrayList<>(
             buildables)) { // copy as we'll mutate the list in the loop
             // one last check to make sure this build is not blocked.
 
             boolean executed = false;
             lock.lock();
+
+
             try { try {
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
                 if (causeOfBlockage != null) {
@@ -1771,9 +1776,14 @@ public class Queue extends ResourceController implements Saveable {
                     }
                 } else {
 
-                    List<JobOffer> candidates = new ArrayList<>(parked.size());
+                    if(reduceParked.isEmpty()) {
+                        logQueInfo("onAllocateFinish2", false);
+                        return;
+                    }
+
+                    List<JobOffer> candidates = new ArrayList<>(reduceParked.size());
                     Map<Node, CauseOfBlockage> reasonMap = new HashMap<>();
-                    for (JobOffer j : parked.values()) {
+                    for (JobOffer j : reduceParked.values()) {
                         Node offerNode = j.getNode();
                         CauseOfBlockage reason;
                         if (reasonMap.containsKey(offerNode)) {
@@ -1789,14 +1799,21 @@ public class Queue extends ResourceController implements Saveable {
                             candidates.add(j);
                         } else {
                             LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
+
+                            Set<Node> existingSet = rejected.get(p.task);
+                            if (existingSet == null) {
+                                existingSet = new HashSet<>();
+                                rejected.put(p.task, existingSet);
+                            }
+
+                            Set<Node> list = rejected.get(p.task);
+                            list.add(offerNode);
+                            reduceParked = reduceParked.entrySet()
+                                .stream()
+                                .filter(it -> !rejected.get(p.task).contains(it.getValue().getNode()))
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                         }
                     }
-
-                    if (candidates.size() == 0) {
-                        LOGGER.log(Level.FINER, "candidates 0 for {0}", p);
-                        continue;
-                    }
-
 
                     MappingWorksheet ws = new MappingWorksheet(p, candidates);
                     Mapping m = loadBalancer.map(p.task, ws);
@@ -1851,16 +1868,6 @@ public class Queue extends ResourceController implements Saveable {
 
             } finally { updateSnapshot(); } } finally {
                 lock.unlock();
-
-                // wait 100ms job to be executed
-//                if (executed) {
-//                    try {
-//                        Thread.sleep(1000);
-//                    }
-//                    catch (Exception e) {
-//
-//                    }
-//                }
 
             }
         }
