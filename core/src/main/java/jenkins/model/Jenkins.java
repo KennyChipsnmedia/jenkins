@@ -5051,16 +5051,6 @@ public class Jenkins extends AbstractCIBase implements DirectlyModifiableTopLeve
                 continue;
             }
 
-            // Kenny, prevent trigger Rebuild when overloaded.
-            String displayName = link.getDisplayName();
-            if (displayName != null) {
-                if (displayName.equals("Rebuild")) {
-                    if (isOverloaded()) {
-                        continue;
-                    }
-                }
-            }
-
             byCategory.computeIfAbsent(link.getCategory(), c -> new ArrayList<>()).add(link);
         }
         return byCategory;

@@ -1297,17 +1297,6 @@ public class Queue extends ResourceController implements Saveable {
         else {
             return null;
         }
-//        return maintainerThread.submit();
-        // Kenny
-        /*
-        return executorService.submit(new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-                maintain();
-                return null;
-            }
-        });
-        */
     }
 
     /**
