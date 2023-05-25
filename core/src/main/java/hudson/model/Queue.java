@@ -637,8 +637,8 @@ public class Queue extends ResourceController implements Saveable {
             cleanTitle = title.substring(0, maxLength);
         }
 
-        String dmsg = String.format(cleanTitle + " => T_ID:%d STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
-            Thread.currentThread().getId(), standbyCounter.get(), WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), Run.getRunners().size());
+        String dmsg = String.format(cleanTitle + " => T_ID:%d STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d bridge:%d) RUNNERS:%d",
+            Thread.currentThread().getId(), standbyCounter.get(), WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), bridge.size(), Run.getRunners().size());
         LOGGER.log(Level.INFO, dmsg);
 
         // force stop to debug,
@@ -1592,8 +1592,10 @@ public class Queue extends ResourceController implements Saveable {
         if (jenkins == null) {
             return null;
         }
+        logQueInfo("onPrepareStart", false);
         lock.lock();
         try { try {
+
             LOGGER.log(Level.FINE, "Queue maintenance started on {0} with {1}", new Object[] {this, snapshot});
 
             // The executors that are currently waiting for a job to run.
@@ -1727,6 +1729,7 @@ public class Queue extends ResourceController implements Saveable {
 
             updateSnapshot();
 
+            logQueInfo("onPrepareFinish", false);
             return parked;
 
         } finally { updateSnapshot(); } } finally {
@@ -1737,6 +1740,7 @@ public class Queue extends ResourceController implements Saveable {
     public void allocate(Map<Executor, JobOffer> parked) {
 
         // allocate buildable jobs to executors
+        logQueInfo("onAllocateStart", false);
         for (BuildableItem p : new ArrayList<>(
             buildables)) { // copy as we'll mutate the list in the loop
             // one last check to make sure this build is not blocked.
@@ -1860,6 +1864,8 @@ public class Queue extends ResourceController implements Saveable {
 
             }
         }
+
+        logQueInfo("onAllocateFinish", false);
 
     }
 
