@@ -503,7 +503,7 @@ public class Queue extends ResourceController implements Saveable {
         lock.lock();
         try { try {
             for (WaitingItem i : new ArrayList<>(
-                    waitingList))   // copy the list as we'll modify it in the loop
+                waitingList))   // copy the list as we'll modify it in the loop
                 i.cancel(this);
             blockedProjects.cancelAll();
             pendings.cancelAll();
@@ -604,7 +604,7 @@ public class Queue extends ResourceController implements Saveable {
                     if (!h.shouldSchedule(p, actions2))
                         return ScheduleResult.refused();    // veto
                 standbyCounter.incrementAndGet();
-                logQueInfo("schedule2", false);
+                logQueInfo("onSchedule", false);
                 return scheduleInternal(p, quietPeriod, actions2);
             }
 
@@ -624,18 +624,26 @@ public class Queue extends ResourceController implements Saveable {
      * Author: Kenny, log Queue information
      */
     public void logQueInfo(String title, boolean withExit) {
-
+        int maxLength = 20;
         long remain =  WaitingItem.ENTERED.get() - LeftItem.LEFT.get();
         long working = waitingList.size() + buildables.size() + pendings.size() + blockedProjects.size();
         long diff = Math.abs(remain - working);
 
-        String dmsg = String.format(title + " => T_ID:%d STANDBY:%d, QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
+        String cleanTitle;
+        if (title.length() <= maxLength) {
+            cleanTitle = String.format("%-" + maxLength + "s", title);
+        }
+        else {
+            cleanTitle = title.substring(0, maxLength);
+        }
+
+        String dmsg = String.format(cleanTitle + " => T_ID:%d STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d) RUNNERS:%d",
             Thread.currentThread().getId(), standbyCounter.get(), WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), Run.getRunners().size());
         LOGGER.log(Level.INFO, dmsg);
 
         // force stop to debug,
         if (withExit && diff != 0) {
-            LOGGER.log(Level.SEVERE, "diff not 0, remain and working must be identical");
+//            LOGGER.log(Level.SEVERE, "diff not 0, remain and working must be identical");
         }
     }
 
@@ -852,7 +860,7 @@ public class Queue extends ResourceController implements Saveable {
     public boolean isEmpty() {
         Snapshot snapshot = this.snapshot;
         return snapshot.waitingList.isEmpty() && snapshot.blockedProjects.isEmpty() && snapshot.buildables.isEmpty()
-                && snapshot.pendings.isEmpty();
+            && snapshot.pendings.isEmpty();
     }
 
     private WaitingItem peek() {
@@ -903,7 +911,7 @@ public class Queue extends ResourceController implements Saveable {
         if (t instanceof AccessControlled) {
             AccessControlled taskAC = (AccessControlled) t;
             if (taskAC.hasPermission(hudson.model.Item.READ)
-                    || taskAC.hasPermission(Permission.READ)) { // TODO should be unnecessary given the 'implies' relationship
+                || taskAC.hasPermission(Permission.READ)) { // TODO should be unnecessary given the 'implies' relationship
                 return true;
             }
             return false;
@@ -944,7 +952,7 @@ public class Queue extends ResourceController implements Saveable {
         if (t.task instanceof hudson.model.Item) {
             hudson.model.Item taskAsItem = (hudson.model.Item) t.task;
             if (!taskAsItem.hasPermission(hudson.model.Item.READ)
-                    && taskAsItem.hasPermission(hudson.model.Item.DISCOVER)) {
+                && taskAsItem.hasPermission(hudson.model.Item.DISCOVER)) {
                 r.add(new StubItem(new StubTask(t.task)));
             }
         }
@@ -1283,7 +1291,7 @@ public class Queue extends ResourceController implements Saveable {
      */
     @WithBridgeMethods(void.class)
     public Future<?> scheduleMaintenance() {
-        if(standbyCounter.get() == 0) {
+        if (standbyCounter.get() == 0) {
             return maintainerThread.submit();
         }
         else {
@@ -1325,7 +1333,7 @@ public class Queue extends ResourceController implements Saveable {
             }
             if (causeOfBlockage != null)
                 LOGGER.log(Level.FINE, "Kenny 1315 causeOfBlockage:" + causeOfBlockage.getShortDescription());
-                return causeOfBlockage;
+            return causeOfBlockage;
         }
 
         if (!(i instanceof BuildableItem)) {
@@ -1603,7 +1611,7 @@ public class Queue extends ResourceController implements Saveable {
             Map<Executor, JobOffer> parked = new HashMap<>();
 
             { // update parked (and identify any pending items whose executor has disappeared)
-                List<BuildableItem> lostPendings = new ArrayList<>(pendings.keySet());
+                List<BuildableItem> lostPendings = new ArrayList<>(pendings);
                 for (Computer c : jenkins.getComputers()) {
                     for (Executor e : c.getAllExecutors()) {
                         if (e.isInterrupted()) {
@@ -1643,7 +1651,7 @@ public class Queue extends ResourceController implements Saveable {
 
             { // blocked -> buildable
                 // copy as we'll mutate the list and we want to process in a potentially different order
-                List<BlockedItem> blockedItems = new ArrayList<>(blockedProjects.keySet());
+                List<BlockedItem> blockedItems = new ArrayList<>(blockedProjects.values());
                 // if facing a cycle of blocked tasks, ensure we process in the desired sort order
                 if (s != null) {
                     s.sortBlockedItems(blockedItems);
@@ -1710,7 +1718,8 @@ public class Queue extends ResourceController implements Saveable {
             // Ensure that identification of blocked tasks is using the live state: JENKINS-27708 & JENKINS-27871
             if (s != null) {
                 try {
-                    s.sortBuildableItems(new ArrayList<>(buildables.keySet()));
+                    logQueInfo("onSort", false);
+                    s.sortBuildableItems(buildables);
                 } catch (Throwable e) {
                     // We don't really care if the sort doesn't sort anything, we still should
                     // continue to do our job. We'll complain about it and continue.
@@ -1718,11 +1727,10 @@ public class Queue extends ResourceController implements Saveable {
                 }
             }
 
-            Iterator<Map.Entry<BuildableItem, Task>> iter = pendings.entrySet().iterator();
-            while(iter.hasNext()) {
-                Map.Entry<BuildableItem, Task> entry = iter.next();
-                BuildableItem pending = entry.getKey();
-                if(!bridge.containsKey(pending)) {
+            Iterator<BuildableItem> iter = pendings.iterator();
+            while (iter.hasNext()) {
+                BuildableItem pending = iter.next();
+                if (!bridge.containsKey(pending)) {
                     iter.remove();
                     break;
                 }
@@ -1741,7 +1749,7 @@ public class Queue extends ResourceController implements Saveable {
 
         // allocate buildable jobs to executors
         for (BuildableItem p : new ArrayList<>(
-            buildables.keySet())) { // copy as we'll mutate the list in the loop
+            buildables)) { // copy as we'll mutate the list in the loop
             // one last check to make sure this build is not blocked.
 
             boolean executed = false;
@@ -1792,7 +1800,7 @@ public class Queue extends ResourceController implements Saveable {
                         }
                     }
 
-                    if(candidates.size() == 0) {
+                    if (candidates.size() == 0) {
                         LOGGER.log(Level.FINER, "candidates 0 for {0}", p);
                         continue;
                     }
@@ -1866,6 +1874,7 @@ public class Queue extends ResourceController implements Saveable {
         }
 
     }
+
     /**
      * Queue maintenance.
      *
@@ -1879,18 +1888,16 @@ public class Queue extends ResourceController implements Saveable {
      * and it also gets invoked periodically (see {@link Queue.MaintainTask}.)
      */
     public void maintain() {
-        LOGGER.log(Level.INFO, "maintain starting...");
         outerLock.lock();
         try {
             Map<Executor, JobOffer> parked = prepare();
-            if(parked != null) {
+            if (parked != null) {
                 allocate(parked);
             }
         }
         finally {
             outerLock.unlock();
         }
-        LOGGER.log(Level.INFO, "maintain done...");
     }
 
     /**
@@ -1985,7 +1992,7 @@ public class Queue extends ResourceController implements Saveable {
     private Runnable createFlyWeightTaskRunnable(final BuildableItem p, final Computer c) {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "Creating flyweight task {0} for computer {1}",
-                    new Object[]{p.task.getFullDisplayName(), c.getName()});
+                new Object[]{p.task.getFullDisplayName(), c.getName()});
         }
         return () -> {
             c.startFlyWeightTask(new WorkUnitContext(p).createWorkUnit(p.task));
@@ -2334,8 +2341,8 @@ public class Queue extends ResourceController implements Saveable {
         public int getIdLegacy() {
             if (id > Integer.MAX_VALUE) {
                 throw new IllegalStateException("Sorry, you need to update any Plugins attempting to " +
-                        "assign 'Queue.Item.id' to an int value. 'Queue.Item.id' is now a long value and " +
-                        "has incremented to a value greater than Integer.MAX_VALUE (2^31 - 1).");
+                    "assign 'Queue.Item.id' to an int value. 'Queue.Item.id' is now a long value and " +
+                    "has incremented to a value greater than Integer.MAX_VALUE (2^31 - 1).");
             }
             return (int) id;
         }
@@ -2757,7 +2764,7 @@ public class Queue extends ResourceController implements Saveable {
         }
 
         @Override
-        /*package*/ void enter(Queue q) {
+            /*package*/ void enter(Queue q) {
             if (q.waitingList.add(this)) {
                 ENTERED.incrementAndGet();
                 Listeners.notify(QueueListener.class, true, l -> l.onEnterWaiting(this));
@@ -2765,7 +2772,7 @@ public class Queue extends ResourceController implements Saveable {
         }
 
         @Override
-        /*package*/ boolean leave(Queue q) {
+            /*package*/ boolean leave(Queue q) {
             boolean r = q.waitingList.remove(this);
             if (r) {
                 Listeners.notify(QueueListener.class, true, l -> l.onLeaveWaiting(this));
@@ -2844,15 +2851,15 @@ public class Queue extends ResourceController implements Saveable {
             return getCauseOfBlockageForItem(this);
         }
 
-                    @Override
-        /*package*/ void enter(Queue q) {
+        @Override
+            /*package*/ void enter(Queue q) {
             LOGGER.log(Level.FINE, "{0} is blocked", this);
             blockedProjects.add(this);
             Listeners.notify(QueueListener.class, true, l -> l.onEnterBlocked(this));
         }
 
-                    @Override
-        /*package*/ boolean leave(Queue q) {
+        @Override
+            /*package*/ boolean leave(Queue q) {
             boolean r = blockedProjects.remove(this);
             if (r) {
                 LOGGER.log(Level.FINE, "{0} no longer blocked", this);
@@ -2941,13 +2948,13 @@ public class Queue extends ResourceController implements Saveable {
         }
 
         @Override
-        /*package*/ void enter(Queue q) {
+            /*package*/ void enter(Queue q) {
             q.buildables.add(this);
             Listeners.notify(QueueListener.class, true, l -> l.onEnterBuildable(this));
         }
 
         @Override
-        /*package*/ boolean leave(Queue q) {
+            /*package*/ boolean leave(Queue q) {
             boolean r = q.buildables.remove(this);
             if (r) {
                 LOGGER.log(Level.FINE, "{0} no longer blocked", this);
@@ -3110,7 +3117,6 @@ public class Queue extends ResourceController implements Saveable {
 
         private void periodic() {
             long interval = 5000;
-//            long interval = 1000;
             Timer.get().scheduleWithFixedDelay(this, interval, interval, TimeUnit.MILLISECONDS);
         }
 
@@ -3118,11 +3124,10 @@ public class Queue extends ResourceController implements Saveable {
         protected void doRun() {
             Queue q = queue.get();
             if (q != null) {
-                q.logQueInfo("periodic", false);
-                if(standbyCounter.get() == 0) {
+                if (standbyCounter.get() == 0) {
                     q.maintain();
                 }
-
+                q.logQueInfo("onPeriod", false);
             }
 
             else
@@ -3133,66 +3138,68 @@ public class Queue extends ResourceController implements Saveable {
     /**
      * {@link ArrayList} of {@link Item} with more convenience methods.
      */
-    private class ItemList<T extends Item> extends HashMap<T, Task> {
-        public ItemList() {
-
-        }
-        public ItemList(ItemList<T> itemList) {
-            for(Entry<T, Task> entry: itemList.entrySet()) {
-                put(entry.getKey(), entry.getValue());
-            }
-        }
-
+    private class ItemList<T extends Item> extends ArrayList<T> {
         public T get(Task task) {
-            for(T item: keySet()) {
+            for (T item : this) {
                 if (item.task.equals(task)) {
                     return item;
                 }
-
             }
             return null;
         }
 
         public List<T> getAll(Task task) {
-
-            return entrySet().stream().filter(entry -> entry.getValue().equals(task)).map(Map.Entry::getKey).collect(Collectors.toList());
+            List<T> result = new ArrayList<>();
+            for (T item : this) {
+                if (item.task.equals(task)) {
+                    result.add(item);
+                }
+            }
+            return result;
         }
 
+        public boolean containsKey(Task task) {
+            return get(task) != null;
+        }
+
+        public T remove(Task task) {
+            Iterator<T> it = iterator();
+            while (it.hasNext()) {
+                T t = it.next();
+                if (t.task.equals(task)) {
+                    it.remove();
+                    return t;
+                }
+            }
+            return null;
+        }
+
+        public void put(Task task, T item) {
+            assert item.task.equals(task);
+            add(item);
+        }
+
+        public ItemList<T> values() {
+            return this;
+        }
+
+        /**
+         * Works like {@link #remove(Task)} but also marks the {@link Item} as cancelled.
+         */
         public T cancel(Task p) {
             T x = get(p);
             if (x != null) x.cancel(Queue.this);
             return x;
-
         }
 
         @SuppressFBWarnings(value = "IA_AMBIGUOUS_INVOCATION_OF_INHERITED_OR_OUTER_METHOD",
-                justification = "It will invoke the inherited clear() method according to Java semantics. "
-                              + "FindBugs recommends suppressing warnings in such case")
+            justification = "It will invoke the inherited clear() method according to Java semantics. "
+                + "FindBugs recommends suppressing warnings in such case")
         public void cancelAll() {
-            for(T item: keySet()) {
-                item.cancel(Queue.this);
-            }
-
-//            super.clear();
+            for (T t : new ArrayList<>(this))
+                t.cancel(Queue.this);
+            clear();
         }
-
-        public boolean add(T item) {
-            super.put(item, item.task);
-            return true;
-        }
-
-        public boolean remove(T item) {
-            if(containsKey(item)) {
-                super.remove(item);
-                return true;
-            }
-            else {
-                return false;
-            }
-
-        }
-
-
     }
 
     private static class Snapshot {
@@ -3204,9 +3211,9 @@ public class Queue extends ResourceController implements Saveable {
         Snapshot(Set<WaitingItem> waitingList, ItemList<BlockedItem> blockedProjects, ItemList<BuildableItem> buildables,
                  ItemList<BuildableItem> pendings) {
             this.waitingList = new LinkedHashSet<>(waitingList);
-            this.blockedProjects = new ArrayList<>(blockedProjects.keySet());
-            this.buildables = new ArrayList<>(buildables.keySet());
-            this.pendings = new ArrayList<>(pendings.keySet());
+            this.blockedProjects = new ArrayList<>(blockedProjects);
+            this.buildables = new ArrayList<>(buildables);
+            this.pendings = new ArrayList<>(pendings);
         }
 
         @Override
@@ -3358,9 +3365,9 @@ public class Queue extends ResourceController implements Saveable {
         /*package*/ @NonNull Future<?> getNextSave() {
             synchronized (lock) {
                 return nextSave == null
-                        ? Futures.precomputed(null)
-                        : nextSave
-                ;
+                    ? Futures.precomputed(null)
+                    : nextSave
+                    ;
             }
         }
     }
