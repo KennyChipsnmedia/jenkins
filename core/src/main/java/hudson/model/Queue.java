@@ -1746,14 +1746,16 @@ public class Queue extends ResourceController implements Saveable {
         logQueInfo("onAllocateStart", false);
         Map<Executor, JobOffer> reduceParked = new HashMap<>(parked);
         Map<Task, Set<Node>> rejected = new HashMap<>();
+
+        Set<Node> basicSet = parked.values().stream()
+            .map(JobOffer::getNode)
+            .collect(Collectors.toSet());
+
         for (BuildableItem p : new ArrayList<>(
             buildables)) { // copy as we'll mutate the list in the loop
             // one last check to make sure this build is not blocked.
 
-            boolean executed = false;
             lock.lock();
-
-
             try { try {
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(p);
                 if (causeOfBlockage != null) {
@@ -1778,9 +1780,20 @@ public class Queue extends ResourceController implements Saveable {
                     }
                 } else {
 
-                    if (reduceParked.isEmpty()) {
-                        logQueInfo("onAllocateFinish2", false);
-                        return;
+                    if (rejected.get(p.task) == null) {
+                        rejected.put(p.task, new HashSet<Node>());
+                    }
+
+                    Set<Node> rejectSet = rejected.get(p.task);
+                    Set<Node> possibleSet = new HashSet<>(basicSet);
+                    possibleSet.removeAll(rejectSet);
+                    if (possibleSet.isEmpty()) {
+                        continue;
+                    }
+                    else {
+                        reduceParked = parked.entrySet().stream()
+                            .filter(it -> possibleSet.contains(it.getValue().getNode()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
 
                     List<JobOffer> candidates = new ArrayList<>(reduceParked.size());
@@ -1802,18 +1815,12 @@ public class Queue extends ResourceController implements Saveable {
                         } else {
                             LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
 
-                            Set<Node> existingSet = rejected.get(p.task);
-                            if (existingSet == null) {
-                                existingSet = new HashSet<>();
-                                rejected.put(p.task, existingSet);
+                            if (rejected.get(p.task) == null) {
+                                rejected.put(p.task, new HashSet<Node>());
                             }
 
                             Set<Node> list = rejected.get(p.task);
                             list.add(offerNode);
-                            reduceParked = reduceParked.entrySet()
-                                .stream()
-                                .filter(it -> !rejected.get(p.task).contains(it.getValue().getNode()))
-                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                         }
                     }
 
@@ -1848,7 +1855,6 @@ public class Queue extends ResourceController implements Saveable {
                     bridge.put(p, wuc);
                     logQueInfo("onExecute", true);
                     m.execute(wuc);
-                    executed = true;
                     //
 
 
