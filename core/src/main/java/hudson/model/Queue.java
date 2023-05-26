@@ -113,7 +113,6 @@ import java.util.stream.Collectors;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 import jenkins.model.Jenkins;
-import jenkins.model.JenkinsLocationConfiguration;
 import jenkins.model.queue.AsynchronousExecution;
 import jenkins.model.queue.CompositeCauseOfBlockage;
 import jenkins.security.QueueItemAuthenticator;
@@ -583,8 +582,10 @@ public class Queue extends ResourceController implements Saveable {
      *      That said, one can still look at {@link Queue.Item#future}, {@link Queue.Item#getId()}, etc.
      */
     public @NonNull ScheduleResult schedule2(Task p, int quietPeriod, List<Action> actions) {
+         /* Not used, Just keep going.
         int queueCapacity = JenkinsLocationConfiguration.get().getQueueCapacity();
         int itemsInQueCount = getItems().length;
+
 
         if (queueCapacity != 0) {
             if (itemsInQueCount >= queueCapacity) {
@@ -592,6 +593,7 @@ public class Queue extends ResourceController implements Saveable {
                 return ScheduleResult.refused();
             }
         }
+        */
 
         // remove nulls
         final List<Action> actions2 = new ArrayList<>(actions);
