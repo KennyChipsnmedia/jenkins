@@ -91,7 +91,6 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -639,7 +638,10 @@ public class Queue extends ResourceController implements Saveable {
         }
 
         String dmsg = String.format(cleanTitle + " => T_ID:%d STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d bridge:%d) RUNNERS:%d",
-            Thread.currentThread().getId(), standbyCounter.get(), WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), bridge.size(), Run.getRunners().size());
+            Thread.currentThread().getId(),
+            standbyCounter.get(),
+            WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), bridge.size(),
+            Run.getRunners().size());
         LOGGER.log(Level.INFO, dmsg);
 
         // force stop to debug,
@@ -1776,7 +1778,7 @@ public class Queue extends ResourceController implements Saveable {
                     }
                 } else {
 
-                    if(reduceParked.isEmpty()) {
+                    if (reduceParked.isEmpty()) {
                         logQueInfo("onAllocateFinish2", false);
                         return;
                     }
