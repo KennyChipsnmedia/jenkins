@@ -82,6 +82,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.StandardCopyOption;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -1747,7 +1748,7 @@ public class Queue extends ResourceController implements Saveable {
         // allocate buildable jobs to executors
         logQueInfo("onAllocateStart", false);
         Map<Executor, JobOffer> reduceParked = new HashMap<>(parked);
-        Map<Task, Set<Node>> rejected = new HashMap<>();
+        Map<Object, Set<Node>> rejected = new HashMap<>();
 
         Set<Node> basicSet = parked.values().stream()
             .map(JobOffer::getNode)
@@ -1782,11 +1783,14 @@ public class Queue extends ResourceController implements Saveable {
                     }
                 } else {
 
-                    if (rejected.get(p.task) == null) {
-                        rejected.put(p.task, new HashSet<Node>());
+                    Map.Entry<Task, Label> key = new AbstractMap.SimpleEntry<>(p.task, p.getAssignedLabel());
+//                    String key = p.task.getName() + " " + p.task.getAssignedLabel().getName();
+
+                    if (rejected.get(key) == null) {
+                        rejected.put(key, new HashSet<Node>());
                     }
 
-                    Set<Node> rejectSet = rejected.get(p.task);
+                    Set<Node> rejectSet = rejected.get(key);
                     Set<Node> possibleSet = new HashSet<>(basicSet);
                     possibleSet.removeAll(rejectSet);
                     if (possibleSet.isEmpty()) {
@@ -1816,12 +1820,7 @@ public class Queue extends ResourceController implements Saveable {
                             candidates.add(j);
                         } else {
                             LOGGER.log(Level.FINEST, "{0} rejected {1}: {2}", new Object[] {j, taskDisplayName, reason});
-
-                            if (rejected.get(p.task) == null) {
-                                rejected.put(p.task, new HashSet<Node>());
-                            }
-
-                            Set<Node> list = rejected.get(p.task);
+                            Set<Node> list = rejected.get(key);
                             list.add(offerNode);
                         }
                     }
