@@ -640,8 +640,7 @@ public class Queue extends ResourceController implements Saveable {
             cleanTitle = title.substring(0, maxLength);
         }
 
-        String dmsg = String.format(cleanTitle + " => T_ID:%d STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d bridge:%d) RUNNERS:%d",
-            Thread.currentThread().getId(),
+        String dmsg = String.format(cleanTitle + " STANDBY:%d QUEUE(entered:%d left:%d remain:%d working:%d => wait:%d buildable:%d pending:%d blocked:%d bridge:%d) RUNNERS:%d",
             standbyCounter.get(),
             WaitingItem.ENTERED.get(),  LeftItem.LEFT.get(), remain, working, waitingList.size(),  buildables.size(), pendings.size(), blockedProjects.size(), bridge.size(),
             Run.getRunners().size());
@@ -678,6 +677,7 @@ public class Queue extends ResourceController implements Saveable {
         try { try {
             Calendar due = new GregorianCalendar();
             due.add(Calendar.SECOND, quietPeriod);
+//            LOGGER.log(Level.INFO, "quietPeriod {0}", quietPeriod);
 
             // Do we already have this task in the queue? Because if so, we won't schedule a new one.
             List<Item> duplicatesInQueue = new ArrayList<>();
@@ -1685,11 +1685,15 @@ public class Queue extends ResourceController implements Saveable {
             // waitingList -> buildable/blocked
             while (!waitingList.isEmpty()) {
                 WaitingItem top = peek();
+//                Calendar now = new GregorianCalendar();
 
-                if (top.timestamp.compareTo(new GregorianCalendar()) > 0) {
-                    LOGGER.log(Level.FINEST, "Finished moving all ready items from queue.");
-                    break; // finished moving all ready items from queue
-                }
+//                LOGGER.log(Level.INFO, "top.timestamp = {0}", top.timestamp.getTime());
+//                LOGGER.log(Level.INFO, "now  {0}", now.getTime());
+
+//                if (top.timestamp.compareTo(new GregorianCalendar()) > 0) {
+//                    LOGGER.log(Level.FINEST, "Finished moving all ready items from queue.");
+//                    break; // finished moving all ready items from queue
+//                }
 
                 top.leave(this);
                 CauseOfBlockage causeOfBlockage = getCauseOfBlockageForItem(top);
